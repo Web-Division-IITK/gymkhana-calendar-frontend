@@ -1,24 +1,29 @@
-import logo from './logo.svg';
-import './App.css';
+import {useState} from "react";
+// import logo from './logo.svg';
+// import './App.css';
+import Calendar from "./revo-calendar"
 
 function App() {
+	const [events, setEvents] = useState([])
+	
+	const addEvent = (date) => {
+		console.log("Event being added")
+		console.log(date)
+		setEvents([...events, {
+			name: "New Event",
+			date: date.getTime()
+		}])
+	}
+	
+	const deleteEvent = (idx) => {
+	
+	}
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <>
+    	<h1>Gymkhana Calendar</h1>
+      <Calendar allowAddEvent events={events} addEvent={addEvent} style={{width: "75%", margin:"auto", border:"1px solid #000", borderRadius:"5px"}}/>
+    </>
   );
 }
 
