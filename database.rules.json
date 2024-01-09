@@ -1,0 +1,20 @@
+{
+  "rules": {
+  	
+    "approved": {
+    	".read":true,
+    	"entities": {
+				".write":false
+  		},
+    	"$entity": {
+    		".write": "auth.token.roles[$entity] === 'approve' || auth.token.admin === true"
+    	}
+    },
+    "requested": {
+    	".read": "auth !== null",
+    	"$entity": {
+    		".write": "auth.token.roles[$entity] !== null || auth.token.admin === true"
+    	}
+    }
+  }
+}

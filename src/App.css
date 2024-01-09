@@ -1,3 +1,14 @@
+* {
+	box-sizing: border-box;
+}
+
+.box {
+	border: solid 1px #000;
+	border-radius: 5px;
+	padding: 10px;
+}
+
+/* 
 .App {
   text-align: center;
 }
@@ -36,3 +47,4 @@
     transform: rotate(360deg);
   }
 }
+ */

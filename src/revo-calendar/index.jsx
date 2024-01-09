@@ -3,11 +3,13 @@ import helperFunctions from "./helpers/functions";
 import translations from "./helpers/translations";
 import { CHEVRON_ICON_SVG, CLOCK_ICON_SVG, DETAILS_ICON_SVG, SIDEBAR_ICON_SVG } from "./helpers/consts";
 import { ThemeProvider } from "styled-components";
-import { Calendar, CloseDetail, CloseSidebar, Day, DayButton, Details, Event, Inner, MonthButton, Sidebar, MonthHeader} from "./styles";
+import { Calendar, CloseDetail, CloseSidebar, Day, DayButton, Details, Event as EventDiv, Inner, MonthButton, Sidebar, MonthHeader} from "./styles";
 
 // -1 = animate closing | 0 = nothing | 1 = animate opening.
 let animatingSidebar = 0;
 let animatingDetail = 0;
+
+//assumes events is sorted, please sort the prop in parent component!!!
 
 const RevoCalendar = ({
 	style = {},
@@ -195,22 +197,23 @@ const RevoCalendar = ({
                     numEvents++;
                 }
             }
-            const day = (<DayButton today={highlight} current={index === currentDay && detailsOpen === "day"} numEvents={numEvents} onClick={() => {
-                    setDay(index);
-                    if (openDetailsOnDateSelection && !detailsOpen) {
-                        animatingDetail = 1;
-                        setDetailsState("day");
-                        // Force sidebar to close if onepanelatatime is true.
-                        if (onePanelAtATime && sidebarOpen) {
-                            animatingSidebar = -1;
-                            setSidebarState(false);
-                        }
-                    } else if (detailsOpen == "month") {
-                    	setDetailsState("day");
-                    }
-                }}>
-          <span>{index}</span>
-        </DayButton>);
+            const day = (
+            <DayButton today={highlight} current={index === currentDay && detailsOpen === "day"} numEvents={numEvents} onClick={() => {
+								setDay(index);
+								if (openDetailsOnDateSelection && !detailsOpen) {
+										animatingDetail = 1;
+										setDetailsState("day");
+										// Force sidebar to close if onepanelatatime is true.
+										if (onePanelAtATime && sidebarOpen) {
+												animatingSidebar = -1;
+												setSidebarState(false);
+										}
+								} else if (detailsOpen === "month") {
+									setDetailsState("day");
+								}
+						}}>
+							<span style={{marginTop:"clamp(32px, max(1rem, 5vw), 55px)"}}>{index}</span>
+						</DayButton>);
             days.push(day);
         }
         
@@ -288,90 +291,67 @@ const RevoCalendar = ({
             }
         }
         
+        
+        
+        const Event = ({event, index, withDate}) => {
         /*
         event properties:
         name
-        date (unix timestamp)
-        allDay
-        extra {
+        date (unix timestamp -> includes start time as well)
+        venue
+        org (organisation, e.g. club, or council, or cell, etc.)
+        duration
+        x extra {
         	icon
         	text
-        }
+        } x (removed)
         image (to add)
-        desc (to add)
-        
+        desc (added)
         */
+        	return (
+						<EventDiv key={index} onClick={() => toggleDeleteButton(index)} role="button">
+							<p>{event.name}</p>
+							<div>
+								<div>
+									<svg width="20" height="20" viewBox="0 0 24 24">
+										<path fill={primaryColorRGB} d={CLOCK_ICON_SVG}/>
+									</svg>
+									{withDate && (<span>{helperFunctions.getFormattedDate(new Date(event.date), detailDateFormat, lang, languages)}</span>)}
+									<span>{helperFunctions.getFormattedTime(new Date(event.date), timeFormat24)} to {helperFunctions.getFormattedTime(new Date(event.date + event.duration*60*1000), timeFormat24)}</span>
+								</div>
+								{event.desc && (<div>
+										<span>{event.desc}</span>
+									</div>)}
+							</div>
+							{showDelete === index && <button onClick={() => deleteEvent(index)}>{languages[lang].delete}</button>}
+						</EventDiv>
+        	)
+        }
         
+        console.log(events);
         const eventDivs = [];
         for (let index = 0; index < events.length; index++) {
             var eventDate = new Date(events[index].date);
             // Take out time from passed timestamp in order to compare only date
             var tempDate = new Date(events[index].date);
             tempDate.setHours(0, 0, 0, 0);
-            if (detailsOpen == "day") {
+            if (detailsOpen === "day") {
 							if (helperFunctions.isValidDate(eventDate) && tempDate.getTime() === selectedDate.getTime()) {
 									const event = (
-									<Event key={index} onClick={() => toggleDeleteButton(index)} role="button">
-										<p>{events[index].name}</p>
-										<div>
-											{events[index].allDay ? (<>
-													{showAllDayLabel && (<div aria-label={languages[lang].eventTime}>
-															<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-																<path fill={primaryColorRGB} d={CLOCK_ICON_SVG}/>
-															</svg>
-															<span>{languages[lang].allDay}</span>
-														</div>)}
-												</>) : (<div>
-													<svg width="20" height="20" viewBox="0 0 24 24">
-														<path fill={primaryColorRGB} d={CLOCK_ICON_SVG}/>
-													</svg>
-													<span>{helperFunctions.getFormattedTime(eventDate, timeFormat24)}</span>
-												</div>)}
-											{events[index].extra && (<div>
-													<svg width="20" height="20" viewBox="0 0 24 24">
-														<path fill={primaryColorRGB} d={events[index].extra?.icon}/>
-													</svg>
-													<span>{events[index].extra?.text}</span>
-												</div>)}
-										</div>
-										{showDelete === index && <button onClick={() => deleteEvent(index)}>{languages[lang].delete}</button>}
-									</Event>
+									<Event index={index} event={events[index]} />
 									);
 									eventDivs.push(event);
 							}
-						} else if (detailsOpen == "month") {
+						} else if (detailsOpen === "month") {
 							if (helperFunctions.isValidDate(eventDate) && tempDate.getMonth() === selectedDate.getMonth() && tempDate.getYear() === selectedDate.getYear()) {
 									const event = (
-									<Event key={index} onClick={() => toggleDeleteButton(index)} role="button">
-										<p>{events[index].name}</p>
-										<div>
-											{events[index].allDay ? (<>
-													{showAllDayLabel && (<div aria-label={languages[lang].eventTime}>
-															<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-																<path fill={primaryColorRGB} d={CLOCK_ICON_SVG}/>
-															</svg>
-															<span>{languages[lang].allDay}</span>
-														</div>)}
-												</>) : (<div>
-													<svg width="20" height="20" viewBox="0 0 24 24">
-														<path fill={primaryColorRGB} d={CLOCK_ICON_SVG}/>
-													</svg>
-													<span>{helperFunctions.getFormattedTime(eventDate, timeFormat24)}</span>
-												</div>)}
-											{events[index].extra && (<div>
-													<svg width="20" height="20" viewBox="0 0 24 24">
-														<path fill={primaryColorRGB} d={events[index].extra?.icon}/>
-													</svg>
-													<span>{events[index].extra?.text}</span>
-												</div>)}
-										</div>
-										{showDelete === index && <button onClick={() => deleteEvent(index)}>{languages[lang].delete}</button>}
-									</Event>
+									<Event index={index} event={events[index]} withDate />
 									);
 									eventDivs.push(event);
 							}
 						}
         }
+        console.log(eventDivs);
         // For no-event days add no events text
         // if (eventDivs.length === 0) {
 //         	if (detailsOpen == "day") eventDivs.push(<p key={-1}>{languages[lang].noEventForThisDay}</p>);
@@ -381,9 +361,9 @@ const RevoCalendar = ({
         return (<>
         <Details animatingIn={animatingDetail === 1} animatingOut={animatingDetail === -1} detailsOpen={detailsOpen} floatingPanels={floatingPanels} onAnimationEnd={animationEnd}>
           <div>
-            {detailsOpen == "day" && helperFunctions.getFormattedDate(selectedDate, detailDateFormat, lang, languages)}
-            {detailsOpen == "month" && `${languages[lang].months[currentMonth]} ${currentYear}`}
-            {allowAddEvent && (<button onClick={() => addEvent(new Date(currentYear, currentMonth, currentDay))}>
+            {detailsOpen === "day" && helperFunctions.getFormattedDate(selectedDate, detailDateFormat, lang, languages)}
+            {detailsOpen === "month" && `${languages[lang].months[currentMonth]} ${currentYear}`}
+            {allowAddEvent && (<button style={{border:`1px solid ${secondaryColor}`, borderRadius:"5px"}} onClick={() => addEvent(new Date(currentYear, currentMonth, currentDay))}>
                 {languages[lang].addEvent}
               </button>)}
           </div>

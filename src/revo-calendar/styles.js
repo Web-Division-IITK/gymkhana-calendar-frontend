@@ -156,18 +156,58 @@ export const Day = styled.div `
   margin: 5px 0;
   grid-column-start: ${(props) => (props.firstDay ? props.firstOfMonth : "auto")};
 `;
+// export const DayButton = styled.button `
+//   display: flex;
+//   justify-content: center;
+//   flex-direction: column;
+//   align-items: center;
+//   border-radius: 50%;
+//   max-width: 55px;
+//   max-height: 55px;
+//   width: max(1rem, 5vw);
+//   height: max(1rem, 5vw);
+//   min-width: 32px;
+//   min-height: 32px;
+//   background: ${(props) => (props.current ? `${props.theme.primaryColor} !important` : "none")};
+//   border: ${(props) => (props.today ? `2px solid ${props.theme.todayColor} !important` : "none")};
+//   font-size: min(1rem, 5vw);
+//   color: ${(props) => (props.current ? `${props.theme.secondaryColor} !important` : props.theme.textColor)};
+//   position: relative;
+//   &:hover {
+//     background: ${(props) => props.theme.primaryColor50} !important;
+//   }
+//   ${(props) => props.numEvents > 0
+//     ? css `
+//           span {
+//             position: relative;
+//             &::after {
+//               content: ${props => `"${props.numEvents} ${props.numEvents === 1 ? "event" : "events"}"`};
+//               background-color: ${(props) => props.theme.indicatorColor};
+//               color: ${props => props.theme.secondaryColor};
+//               border-radius: 10px;
+//               width: 60px;
+//               font-size: 8pt;
+//               height: 15px;
+//               position: absolute;
+//               bottom: -15px;
+//               left: calc(50% - 30px);
+//             }
+//           }
+//         `
+//     : ""}
+// `;
+
 export const DayButton = styled.button `
+	box-sizing: content-box;
+	flex-shrink:0;
   display: flex;
   justify-content: center;
   flex-direction: column;
   align-items: center;
   border-radius: 50%;
-  max-width: 55px;
-  max-height: 55px;
-  width: max(1rem, 5vw);
-  height: max(1rem, 5vw);
-  min-width: 32px;
-  min-height: 32px;
+  width: clamp(32px, max(1rem, 5vw), 55px);
+  height: 0;
+  padding-bottom: clamp(32px, max(1rem, 5vw), 55px);
   background: ${(props) => (props.current ? `${props.theme.primaryColor} !important` : "none")};
   border: ${(props) => (props.today ? `2px solid ${props.theme.todayColor} !important` : "none")};
   font-size: min(1rem, 5vw);
@@ -196,6 +236,7 @@ export const DayButton = styled.button `
         `
     : ""}
 `;
+
 export const Inner = styled.div `
   padding: 1rem;
   flex-grow: 1;
@@ -204,7 +245,7 @@ export const Inner = styled.div `
   -ms-overflow-style: none;
   scrollbar-width: none;
   & > div {
-    overflow-x: scroll;
+    overflow-x: auto;
     &::-webkit-scrollbar {
       display: none;
     }
