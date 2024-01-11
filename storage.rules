@@ -6,7 +6,19 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      allow read, write: if true;
+    	//anyone can read (i.e. get images, not list em all)
+    	//write is allowed only if 
+    	//1. logged in
+    	//2. image < 5 MB
+    	//3. is an image
+    	//4. is not a delete
+      allow get: if true;
+      allow list: if false;
+      allow create:	if request.auth != null
+      							&& request.resource.size < 5*1024*1024
+      							&& request.resource.contentType.matches('image/.*');
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

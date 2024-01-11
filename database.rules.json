@@ -13,7 +13,7 @@
     "requested": {
     	".read": "auth !== null",
     	"$entity": {
-    		".write": "auth.token.roles[$entity] !== null || auth.token.admin === true"
+    		".write": "auth.token.roles[$entity] !== null || auth.token.admin === true",
     	}
     }
   }

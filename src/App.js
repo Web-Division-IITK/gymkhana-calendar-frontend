@@ -5,18 +5,26 @@ import './App.css';
 import Calendar from "./revo-calendar"
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
-import { getDatabase, ref, get, push, connectDatabaseEmulator, child, onValue } from "firebase/database";
-import { getStorage, connectStorageEmulator} from "firebase/storage";
+import { getDatabase, ref as dbref, get, push, connectDatabaseEmulator, child, onValue } from "firebase/database";
+import { getStorage, connectStorageEmulator, ref as stref, uploadBytes, getDownloadURL} from "firebase/storage";
 
 const firebaseConfig = { //it's ok to put these here, I checked
   apiKey: "AIzaSyC8pHMcFe9QcAH-0auLWPwpaIUu3F-UQcw",
 //   authDomain: "gymkhanacalendar.firebaseapp.com",
   projectId: "gymkhanacalendar",
-//   storageBucket: "gymkhanacalendar.appspot.com",
+  storageBucket: "gymkhanacalendar.appspot.com",
   messagingSenderId: "74846642585",
   appId: "1:74846642585:web:9abd6791254c250624b308",
 //   databaseURL:"https://gymkhanacalendar-default-rtdb.asia-southeast1.firebasedatabase.app/",
 };
+
+function intToBase64(num) {
+	if (num != Math.round(num)) throw new Error("Not an integer");
+	if (num <= 0) throw new Error("Not positive");
+	let bytes = []
+	for (; num > 0; num = Math.trunc(num/256)) bytes.unshift(num%256);
+	return btoa(new Uint8Array(bytes));
+}
 
 // Initialize Firebase
 const firebaseApp = initializeApp(firebaseConfig);
@@ -28,9 +36,9 @@ connectDatabaseEmulator(firebaseDatabase, "127.0.0.1", 9000);
 connectAuthEmulator(firebaseAuth, "http://127.0.0.1:9099");
 connectStorageEmulator(firebaseStorage, "127.0.0.1", 9199);
 
-const entitiesRef = ref(firebaseDatabase, "/entities");
-const approvedRef = ref(firebaseDatabase, "/approved");
-const requestedRef = ref(firebaseDatabase, "/requested");
+const entitiesRef = dbref(firebaseDatabase, "/entities");
+const approvedRef = dbref(firebaseDatabase, "/approved");
+const requestedRef = dbref(firebaseDatabase, "/requested");
 
 const firebaseAuthStore = {
 	subscribe(callback) {
@@ -54,7 +62,7 @@ const firebaseEventsStore = {
 	eventsUnsub: () => {}, //initialize as 'empty' function
 	authUnsub: null,
 	subscribe(callback) {
-		console.log("subscribe called");
+		// console.log("subscribe called");
 		//point of this: when not signed in, subscribing just fetches events and entities
 		//once and then stops
 		if (!firebaseAuth.currentUser) {
@@ -62,12 +70,12 @@ const firebaseEventsStore = {
 			console.log("Not signed in");
 			console.log("Fetching events data...");
 			let prev = Number(localStorage.getItem("updateTime")); //null if not present
-			console.log(`Prev is ${prev}`);
+			// console.log(`Prev is ${prev}`);
 			if (Date.now() - Number(prev) > 5*60*1000) { //min update time: 5 min
-				console.log("Getting events data from db...");
+				// console.log("Getting events data from db...");
 				try {
 					let snapshot = await get(approvedRef);
-					console.log("Fetched events data");
+					// console.log("Fetched events data");
 					//clear old events
 					this.events.approved = [];
 					console.log(snapshot.val())
@@ -115,7 +123,7 @@ const firebaseEventsStore = {
 		this.authUnsub = onAuthStateChanged(firebaseAuth, () => {
 			//plan: we use onAuthState to set up the callback for events and entities
 			//we can store the callback in eventsUnsub so shouldn't be a problem...?
-			console.log("onAuthStateChanged callback");
+			// console.log("onAuthStateChanged callback");
 			if (firebaseAuth.currentUser) {
 				//signed in -> set up callback
 				let approvedUnsub = onValue(approvedRef, (snapshot) => {
@@ -156,16 +164,14 @@ const firebaseEventsStore = {
 				})
 				this.eventsUnsub = () => {
 					//these should be captured because closure
-					console.log("unsubscribed")
+					// console.log("unsubscribed")
 					approvedUnsub();
 					requestedUnsub();
 				}
 			} else { //i.e. when signing out
-				console.log("signout unsub");
+				// console.log("signout unsub");
 				this.eventsUnsub(); //unsubscribe from everything
-				this.eventsUnsub = () => {
-					
-				};
+				this.eventsUnsub = () => {};
 			}
 		});
 		return () => {
@@ -174,6 +180,7 @@ const firebaseEventsStore = {
 		}
 	},
 	getSnapshot() {
+		// console.log("Events requested");
 		this.returnValue.events = this.events;
 		this.returnValue.entities = this.entities; 
 		//if there is no change in either there should be no change in returnValue
@@ -190,11 +197,11 @@ function useFirebase() {//hook to abstract all firebase details
 	);
 	//^ both functions use 'this' liberally so need to bind 'this' to firebaseEventsStore
 	const [privileges, setPrivileges] = useState({});
-	console.log({
-		user,
-		events,
-		entities
-	})
+	// console.log({
+// 		user,
+// 		events,
+// 		entities
+// 	})
 	useEffect(()=> {
 		(async () => {
 		if (user) {
@@ -221,8 +228,9 @@ function useFirebase() {//hook to abstract all firebase details
 	}
 }
 
-function App() {
 
+
+function App() {
 	const eventTemplate = { //for reference
 		name: "",
 		date: 0,
@@ -235,7 +243,7 @@ function App() {
 	}
 	
 	const [dialogOpen, setDialog] = useState(false); //add events dialog open or not?
-	const [dialogDate, setDialogDate] = useState(0); //what date to display in the add events form
+	const [dialogDate, setDialogDate] = useState(""); //what date to display in the add events form
 	const [userError, setUserError] = useState(false); //login form error status
 	const [eventError, setEventError] = useState(false); //add event form error status
 	const [imageError, setImageError] = useState(false); //image upload error status
@@ -261,6 +269,13 @@ function App() {
 	const {user, events, entities, privileges} = useFirebase();
 	//using the hook above
 	
+	const allEvents = [...events.approved.map(el => ({...el, status:"approved"})), ...events.requested.map(el => ({...el, status:"requested"}))]
+	
+	console.log("events");
+	console.log(events);
+	console.log("allEvents");
+	console.log(allEvents);
+	
 	useEffect(() => {
 		//whenever imageFile changes, set up a FileReader to
 		//read the data into imagePreview so that the <img> in the
@@ -275,16 +290,18 @@ function App() {
 	}, [imageFile])
 	
 	const addEvent = (date) => {
-		console.log("Event being added")
-		console.log(date)
-		console.log(addEventFormRef.current);
+		// console.log("Event being added")
+// 		console.log(date)
+// 		console.log(addEventFormRef.current);
+		setDialogDate(`${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
 // 		setAddEventForm({
 // 			...addEventForm,
 // 			date: date.getTime()
 // 		})
 		setDialog(true);
 	}
-	
+	console.log("Logging events");
+	console.log(events.requested);
 	
 	const deleteEvent = (idx) => {
 	
@@ -323,7 +340,7 @@ function App() {
 							date:(new Date(formData.get("date") + " " + formData.get("start"))).getTime(),
 							desc:formData.get("desc"),
 							duration:(Number(endH) - Number(startH))*60 + (Number(endM) - Number(startM)),
-							image:"",
+							image:imageURL,
 							venue:"",
 						})
 						console.log("Pushed event successfully");
@@ -341,9 +358,12 @@ function App() {
 							{Object.keys(privileges).map(el => <MenuItem value={el} key={el}>{entities[el]}</MenuItem>)}
 						</Select>
 					</FormControl>
-      		<TextField label="Name" name="name" fullWidth required/>
+					<div style={{width:"100%", display:"flex", gap:"10px"}}>
+      			<TextField label="Name" name="name" fullWidth required/>
+      			<TextField label="Venue" name="venue" fullWidth required />
+      		</div>
       		<TextField label="Description (will be mailed as well)" name="desc" multiline fullWidth required/>
-      		<div style={{display:"flex", width:"100%", gap: "10px"}}><TextField helperText="Date" name="date" type="date" sx={{flexGrow: "3"}} required/><TextField helperText="Start Time" name="start" type="time" sx={{flexGrow: "2"}} required/><TextField helperText="End Time" name="end" type="time" sx={{flexGrow: "2"}} required/></div>
+      		<div style={{display:"flex", width:"100%", gap: "10px"}}><TextField helperText="Date" name="date" type="date" defaultValue={dialogDate} onChange={(e) => {setDialogDate(e.target.value)}} sx={{flexGrow: "3"}} required/><TextField helperText="Start Time" name="start" type="time" sx={{flexGrow: "2"}} required/><TextField helperText="End Time" name="end" type="time" sx={{flexGrow: "2"}} required/></div>
       		<div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:"10px", width: "100%"}}>
       			<h3>Upload image (max 5 MB, PNG, JPG, GIF only)</h3>
       			<div style={{display:"flex", width:"100%", gap: "10px", alignItems:"center", justifyContent:"space-between"}}>
@@ -351,15 +371,28 @@ function App() {
       			onChange={(e) => {
       				setImageFile(e.target.files[0]);
       				setImageError(false);
+      				setImageURL(""); //remove old URL
       			}}/>
       			<Button variant="contained" 
-      			onClick={() => {
+      			onClick={async () => {
       				try {
       				//first check if size > 5MB
-								if (imageFile.size > 5*1024*1024) {
-									throw new Error("Image too big")
-								}
-								
+      					if (!imageFile) return; //no image, so do nothing - don't even throw an error
+								if (imageFile.size > 5*1024*1024) throw new Error("Image too big")
+								let imageName = intToBase64(Date.now());
+								//current time down to the milisecond
+								//if I somehow get name conflicts with this.........
+								const imageRef = stref(firebaseStorage, imageName, {customMetadata:{
+									//metadata
+									user: user.email
+								}});
+								console.log("Starting upload...");
+								await uploadBytes(imageRef, imageFile);
+								console.log("Successfully uploaded file, getting URL...");
+								let url = await getDownloadURL(imageRef);
+								setImageError(false);
+								setImageURL(url);
+								console.log("Success!")
 								
 							} catch (err) {
 								setImageError(true);
@@ -368,14 +401,20 @@ function App() {
 							}
       			}}>Upload</Button>
       			</div>
-      			{imageError ? (
+      			{imageFile && (
+      			<div>Image size: {imageFile.size < 1024 ? `${imageFile.size} bytes` : imageFile.size < 1024*1024 ? `${(imageFile.size/1024).toFixed(2)} KB` : `${(imageFile.size/(1024*1024)).toFixed(2)} MB`}</div>
+      			)}
+      			{imageURL !== "" && (
+      			<div>Successfully uploaded image. If you wish to upload another image, simply select another one (click "Browse...") and then click Upload again. Image URL is {imageURL} and will be attached automatically.</div>
+      			)}
+      			{imageError && (
       			<div style={{color:"red"}}>
       			Error in uploading image. This could be because:
       			<ul>
       				<li>The image is bigger than 5 MB</li>
       				<li>Some other error, check the console for more details</li>
       			</ul>
-      			</div>) : ""}
+      			</div>)}
       			<h5>Image Preview</h5>
       			<img src={imagePreview} alt="Your uploaded image" className="box" style={{width:"100%"}}/>
       		</div>
@@ -393,7 +432,7 @@ function App() {
       <Box sx={{width: "90%", margin:"auto"}}>
 				<Grid spacing={6} container>
 					<Grid item xs={12} md={8}>
-					<Calendar className="box" allowAddEvent={true || firebaseAuth.currentUser} events={events.approved} addEvent={addEvent} style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/>
+					<Calendar className="box" allowAddEvent={true || user} events={allEvents} addEvent={addEvent} style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/>
 					</Grid>
 					<Grid item xs={12} md={4}>
 						<Box className="box" sx={{width: "100%"}}>
