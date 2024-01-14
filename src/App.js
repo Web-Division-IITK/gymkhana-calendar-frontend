@@ -12,12 +12,12 @@ import { getStorage, connectStorageEmulator, ref as stref, uploadBytes, getDownl
 
 const firebaseConfig = { //it's ok to put these here, I checked
   apiKey: "AIzaSyC8pHMcFe9QcAH-0auLWPwpaIUu3F-UQcw",
-//   authDomain: "gymkhanacalendar.firebaseapp.com",
+  authDomain: "gymkhanacalendar.firebaseapp.com",
   projectId: "gymkhanacalendar",
   storageBucket: "gymkhanacalendar.appspot.com",
   messagingSenderId: "74846642585",
   appId: "1:74846642585:web:9abd6791254c250624b308",
-//   databaseURL:"https://gymkhanacalendar-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  databaseURL:"https://gymkhanacalendar-default-rtdb.asia-southeast1.firebasedatabase.app/",
 };
 
 function intToBase64(num) {
@@ -34,9 +34,9 @@ const firebaseAuth = getAuth(firebaseApp);
 const firebaseDatabase = getDatabase(firebaseApp);
 const firebaseStorage = getStorage(firebaseApp);
 
-connectDatabaseEmulator(firebaseDatabase, "127.0.0.1", 9000);
-connectAuthEmulator(firebaseAuth, "http://127.0.0.1:9099");
-connectStorageEmulator(firebaseStorage, "127.0.0.1", 9199);
+// connectDatabaseEmulator(firebaseDatabase, "127.0.0.1", 9000);
+// connectAuthEmulator(firebaseAuth, "http://127.0.0.1:9099");
+// connectStorageEmulator(firebaseStorage, "127.0.0.1", 9199);
 
 const entitiesRef = dbref(firebaseDatabase, "/entities");
 const approvedRef = dbref(firebaseDatabase, "/approved");
@@ -568,12 +568,12 @@ function App() {
       	</Card>
       </Dialog>
       <Box sx={{width: "90%", margin:"auto"}}>
-				<Grid spacing={2} container>
+				<Grid spacing={2} container sx={{}}>
 					<Grid item xs={12} md={9}>
 					<Calendar className="box" allowAddEvent={user} events={allEvents} addEvent={addEvent} deleteEvent={deleteEvent} editEvent={editEvent} editEventApproval={editEventApproval} privilege={privileges} style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/>
 					</Grid>
 					<Grid item xs={12} md={3}>
-						<Box className="box" sx={{width: "100%", backgroundColor:theme.primaryColor, color:theme.secondaryColor}}>
+						<Box className="box" sx={{display:"flex", flexDirection:"column", gap:"10px",width: "100%", backgroundColor:theme.primaryColor, color:theme.secondaryColor, height:"520px", overflow:"auto"}}>
 							<h1>Upcoming Events</h1>
 							<ThemeProvider theme={theme}>
 							{allEvents.filter(event => (event.date - Date.now() > 0) && (event.date - Date.now() < 1000*60*60*24*7)).map((event, idx) => (
