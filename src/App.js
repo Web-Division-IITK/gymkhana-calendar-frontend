@@ -2,10 +2,12 @@ import {useEffect, useState, useRef, useReducer, useSyncExternalStore} from "rea
 import {Box, Button, Card, Dialog, FormControl, InputLabel, Grid, MenuItem, Select, TextField} from "@mui/material"
 // import logo from './logo.svg';
 import './App.css';
-import Calendar from "./revo-calendar"
+import Calendar, {Event} from "./revo-calendar"
+import helperFunctions from "./revo-calendar/helpers/functions";
+import { ThemeProvider } from "styled-components";
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
-import { getDatabase, ref as dbref, get, push, connectDatabaseEmulator, child, onValue } from "firebase/database";
+import { getDatabase, ref as dbref, get, push, connectDatabaseEmulator, child, onValue, remove, update } from "firebase/database";
 import { getStorage, connectStorageEmulator, ref as stref, uploadBytes, getDownloadURL} from "firebase/storage";
 
 const firebaseConfig = { //it's ok to put these here, I checked
@@ -49,26 +51,50 @@ const firebaseAuthStore = {
 	}
 }
 
+//some helper functions for firebaseEventsStore
+function unpackEvents(snapshot, status, entities) {
+// 	console.log(`unpackEvents ${status}`)
+	let eventsArr = []
+	snapshot.forEach(el => {
+		if (el.key === "entities") return;
+		//event.val() is an object whose values are events and whose keys are the name of the objects in the database
+		for (const [key, value] of Object.entries(el.val())) {
+			value.org = entities[el.key];
+			value.orgKey = el.key;
+			value.key = key; //for referencing later on if signed in - then updates become dynamic/connection to db opened for constant updates
+			value.status = status;
+			eventsArr.push(value);
+		}
+	});
+	eventsArr.sort((a, b) => (a.date - b.date)); //sorts by start time
+// 	console.log(eventsArr);
+	return eventsArr;
+}
+
 const firebaseEventsStore = {
-	events: {
-		approved: [],
-		requested: []
-	}, //initialize as empty
-	//separated like that because then it's easier to update when signed in
-	//(this is how it is stored in the database too)
-	entities: {},
-	returnValue: {events: null, entities: null}, //needed for "caching" and because I don't feel like separating this into another object
+	returnValue: {
+		events: {
+			approved: [],
+			requested: []
+		},
+		entities: {}}, //needed for "caching" and because I don't feel like separating this into another store
 	//(react needs to get the same object back if there is no update)
 	eventsUnsub: () => {}, //initialize as 'empty' function
 	authUnsub: null,
+	setReturnValue(obj) {
+		this.returnValue = {
+			...this.returnValue,
+			...obj
+		}
+	},
 	subscribe(callback) {
-		// console.log("subscribe called");
+// 		console.log("subscribe called");
 		//point of this: when not signed in, subscribing just fetches events and entities
 		//once and then stops
 		if (!firebaseAuth.currentUser) {
 			(async () => {
-			console.log("Not signed in");
-			console.log("Fetching events data...");
+// 			console.log("Not signed in");
+// 			console.log("Fetching events data...");
 			let prev = Number(localStorage.getItem("updateTime")); //null if not present
 			// console.log(`Prev is ${prev}`);
 			if (Date.now() - Number(prev) > 5*60*1000) { //min update time: 5 min
@@ -76,24 +102,18 @@ const firebaseEventsStore = {
 				try {
 					let snapshot = await get(approvedRef);
 					// console.log("Fetched events data");
-					//clear old events
-					this.events.approved = [];
-					console.log(snapshot.val())
+// 					console.log(snapshot.val())
 					//first: get approved/entities
-					this.entities = snapshot.child("entities").val();
-					//'this' should work inside arrow functions because it should use subscribe's version of this i.e. the object
-					snapshot.forEach(el => {
-						if (el.key === "entities") return;
-						//event.val() is an object whose values are events and whose keys are the name of the objects in the database
-						for (const [key, value] of Object.entries(el.val())) {
-							value.org = el.key;
-							value.key = key; //for referencing later on if signed in - then updates become dynamic/connection to db opened for constant updates
-							this.events.approved.push(value);
+					let entities_temp = snapshot.child("entities").val();
+					this.setReturnValue({
+						entities: entities_temp,
+						events: {
+							approved: unpackEvents(snapshot, "approved", entities_temp),
+							requested: this.returnValue.events.requested,
 						}
-					});
-					this.events.approved.sort((a, b) => (a.date - b.date)); //sorts by start time
-					localStorage.setItem("events",JSON.stringify(this.events.approved));
-					localStorage.setItem("entities",JSON.stringify(this.entities));
+					})
+					localStorage.setItem("events",JSON.stringify(this.returnValue.events.approved));
+					localStorage.setItem("entities",JSON.stringify(this.returnValue.entities));
 					console.log("Fetched events and entities!");
 				} catch (err) {
 					console.error("Error in fetching events data");
@@ -102,18 +122,24 @@ const firebaseEventsStore = {
 				localStorage.setItem("updateTime", Date.now());
 			} else {// get events localStorage
 				try {
-					this.events.approved = localStorage.getItem("events");
-					if (this.events.approved == null) throw new Error("No events stored!");
-					this.entities = localStorage.getItem("entities");
-					if (this.entities == null) throw new Error("No entities stored!");
-					this.events.approved = JSON.parse(this.events.approved);
-					this.entities = JSON.parse(this.entities);
+					let events_approved_temp = localStorage.getItem("events");
+					if (events_approved_temp == null) throw new Error("No events stored!");
+					let entities_temp = localStorage.getItem("entities");
+					if (entities_temp == null) throw new Error("No entities stored!");
+					this.setReturnValue({
+						entities: JSON.parse(entities_temp),
+						events: {
+							approved: JSON.parse(events_approved_temp),
+							requested: this.returnValue.events.requested,
+						}
+					})
 				} catch (err) {
 					console.error("Error in getting events/entities data locally");
 					console.error(err);
 				}
 			}
 			//either way, once everything is done, execute the callback so that react fetches new data
+// 			console.log("callback called");
 			callback();
 			//no cleanup necessary to unsubscribe here
 			})(); //anonymous async function executed immediately
@@ -127,38 +153,27 @@ const firebaseEventsStore = {
 			if (firebaseAuth.currentUser) {
 				//signed in -> set up callback
 				let approvedUnsub = onValue(approvedRef, (snapshot) => {
-					console.log("New approved events data");
+// 					console.log("New approved events data");
 					// console.log(snapshot);
-					//clear old approved events
-					this.events.approved = [];
-					snapshot.forEach(el => {
-						if (el.key === "entities") return;
-						for (const [key, value] of Object.entries(el.val())) {
-							value.org = el.key;
-							value.key = key; //for referencing later on if signed in - then updates become dynamic/connection to db opened for constant updates
-							//(if I decide to start using onChildAdded/Changed/Deleted etc. type updates... in the future)
-							this.events.approved.push(value);
+					this.setReturnValue({
+						events: {
+							approved: unpackEvents(snapshot, "approved", this.returnValue.entities),
+							requested: this.returnValue.events.requested,
 						}
 					})
-					this.events.approved.sort((a, b) => (a.date - b.date)); //sorts by start time
-					localStorage.setItem("events",JSON.stringify(this.events.approved));
+					localStorage.setItem("events",JSON.stringify(this.returnValue.events.approved));
 					//call the callback to notify that there is an update
 					callback();	
 				})
 				let requestedUnsub = onValue(requestedRef, (snapshot) => {
-					console.log("New requested events data");
+// 					console.log("New requested events data");
 					// console.log(snapshot)
-					//clear old requested events
-					this.events.requested = [];
-					snapshot.forEach(el => {
-						for (const [key, value] of Object.entries(el.val())) {
-							value.org = el.key;
-							value.key = key; //for referencing later on if signed in - then updates become dynamic/connection to db opened for constant updates
-							//(if I decide to start using onChildAdded/Changed/Deleted etc. type updates... in the future)
-							this.events.requested.push(value);
+					this.setReturnValue({
+						events: {
+							approved: this.returnValue.events.approved,
+							requested: unpackEvents(snapshot, "requested", this.returnValue.entities),
 						}
 					})
-					this.events.requested.sort((a, b) => (a.date - b.date)); //sorts by start time
 					//call the callback
 					callback();	
 				})
@@ -170,6 +185,12 @@ const firebaseEventsStore = {
 				}
 			} else { //i.e. when signing out
 				// console.log("signout unsub");
+				this.setReturnValue({
+					events:{
+						approved: this.returnValue.events.approved,
+						requested: []
+					}
+				})
 				this.eventsUnsub(); //unsubscribe from everything
 				this.eventsUnsub = () => {};
 			}
@@ -180,22 +201,28 @@ const firebaseEventsStore = {
 		}
 	},
 	getSnapshot() {
-		// console.log("Events requested");
-		this.returnValue.events = this.events;
-		this.returnValue.entities = this.entities; 
-		//if there is no change in either there should be no change in returnValue
+// 		console.log("Events requested");
+// 		console.log("approved");
+// 		this.returnValue.events.approved.forEach(el => {console.log(el)})
+// 		console.log("requested");
+// 		this.returnValue.events.requested.forEach(el => {console.log(el)})
 		return this.returnValue; 
 	}
 }
 			
+const firebaseEventsSubscribe = firebaseEventsStore.subscribe.bind(firebaseEventsStore);
+const firebaseEventsSnapshot = firebaseEventsStore.getSnapshot.bind(firebaseEventsStore);
 
 function useFirebase() {//hook to abstract all firebase details
 	const user = useSyncExternalStore(firebaseAuthStore.subscribe, firebaseAuthStore.getSnapshot);
 	const {events, entities} = useSyncExternalStore(
-		firebaseEventsStore.subscribe.bind(firebaseEventsStore), 
-		firebaseEventsStore.getSnapshot.bind(firebaseEventsStore)
+		firebaseEventsSubscribe, 
+		firebaseEventsSnapshot
 	);
 	//^ both functions use 'this' liberally so need to bind 'this' to firebaseEventsStore
+	
+// 	console.log("Refreshing")
+	
 	const [privileges, setPrivileges] = useState({});
 	// console.log({
 // 		user,
@@ -218,8 +245,7 @@ function useFirebase() {//hook to abstract all firebase details
 			setPrivileges({});
 		}
 		})();
-	},[user]);
-	
+	},[user, entities]); //user may load before entities so re-run whenever entities is filled
 	return {
 		user,
 		events,
@@ -242,8 +268,31 @@ function App() {
 		key: ""
 	}
 	
-	const [dialogOpen, setDialog] = useState(false); //add events dialog open or not?
-	const [dialogDate, setDialogDate] = useState(""); //what date to display in the add events form
+	
+	
+	const themeControls={
+		primaryColor: "#333",
+		secondaryColor: "#fff",
+		todayColor: "#3B3966",
+		textColor: "#f00",
+		indicatorColor: "orange",
+		otherIndicatorColor: "#08e",
+		animationSpeed: 300,
+	}
+	const theme={
+		primaryColor: helperFunctions.getRGBColor(themeControls.primaryColor),
+		primaryColor50: helperFunctions.getRGBAColorWithAlpha(helperFunctions.getRGBColor(themeControls.primaryColor), 0.5),
+		secondaryColor: helperFunctions.getRGBColor(themeControls.secondaryColor),
+		todayColor: helperFunctions.getRGBColor(themeControls.todayColor),
+		textColor: helperFunctions.getRGBColor(themeControls.textColor),
+		indicatorColor: helperFunctions.getRGBColor(themeControls.indicatorColor),
+		otherIndicatorColor: helperFunctions.getRGBColor(themeControls.otherIndicatorColor),
+		animationSpeed: `${themeControls.animationSpeed}ms`,
+	}
+	
+	const [dialogOpen, setDialog] = useState(false); //events dialog open or not? can be false, "add", or "edit"
+	const [dialogDate, setDialogDate] = useState(""); //what date to display in the add events form (if adding event)
+	const [dialogEdit, setDialogEdit] = useState({}); //event object  to display in edit events form (if editing event)
 	const [userError, setUserError] = useState(false); //login form error status
 	const [eventError, setEventError] = useState(false); //add event form error status
 	const [imageError, setImageError] = useState(false); //image upload error status
@@ -269,12 +318,19 @@ function App() {
 	const {user, events, entities, privileges} = useFirebase();
 	//using the hook above
 	
-	const allEvents = [...events.approved.map(el => ({...el, status:"approved"})), ...events.requested.map(el => ({...el, status:"requested"}))]
+	const allEvents = [...(events.approved.map(el => ({...el, status:"approved"}))), ...(events.requested.map(el => ({...el, status:"requested"})))]
 	
-	console.log("events");
-	console.log(events);
-	console.log("allEvents");
-	console.log(allEvents);
+// 	useEffect(() => {
+// 		console.log("events updated");
+// 	}, [events])
+	
+// 	console.log("events");
+// 	console.log("approved");
+// 	events.approved.forEach(el => {console.log(el)})
+// 	console.log("requested");
+// 	events.requested.forEach(el => {console.log(el)})
+// 	console.log("allEvents");
+// 	console.log(allEvents);
 	
 	useEffect(() => {
 		//whenever imageFile changes, set up a FileReader to
@@ -290,34 +346,90 @@ function App() {
 	}, [imageFile])
 	
 	const addEvent = (date) => {
-		// console.log("Event being added")
-// 		console.log(date)
-// 		console.log(addEventFormRef.current);
 		setDialogDate(`${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
-// 		setAddEventForm({
-// 			...addEventForm,
-// 			date: date.getTime()
-// 		})
-		setDialog(true);
+		setDialog("add");
 	}
-	console.log("Logging events");
-	console.log(events.requested);
 	
-	const deleteEvent = (idx) => {
+	const deleteEvent = async (event) => {
+		try {
+			await remove(
+			child(
+				child(
+					(event.status === "requested" ? requestedRef : approvedRef),
+					event.orgKey
+				),
+				event.key
+			));
+		} catch (err) {
+			console.error("Error in deleting event");
+			console.error(err);
+		}
+	}
 	
+	const editEvent = (event) => {
+		console.log("edit event")
+		let date = new Date(event.date);
+		setDialogDate(`${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
+		let end_mins = date.getHours()*60 + date.getMinutes() + event.duration; //num miliseconds since start of day of date/num miliseconds in a minute
+		console.log(end_mins)
+		event.start = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+		event.end = `${Math.trunc(end_mins/60).toString().padStart(2, '0')}:${Math.trunc(end_mins%60)}`
+		console.log(event);
+		setDialogEdit(event);
+		setImageURL(event.image);
+		setDialog("edit")
+	}
+
+	const editEventApproval = async (event) => {
+		let submissionObj;
+		try {
+			submissionObj = {
+				name: event.name,
+				venue:event.venue,
+				desc: event.desc,
+				image: event.image,
+				date: event.date,
+				duration: event.duration
+			}
+			if (event.status === "requested") {//then approve the event
+				const newKey = await push(child(approvedRef, event.orgKey)).key;
+				await update(dbref(firebaseDatabase), {
+					[`/requested/${event.orgKey}/${event.key}`]:null,
+					[`/approved/${event.orgKey}/${newKey}`]: submissionObj
+				});
+			} else if (event.status === "approved") {//then unapprove the event i.e. return to requested
+				const newKey = await push(child(requestedRef, event.orgKey)).key;
+				console.log(newKey);
+				await update(dbref(firebaseDatabase), {
+					[`/approved/${event.orgKey}/${event.key}`]:null,
+					[`/requested/${event.orgKey}/${newKey}`]: submissionObj
+				});
+			}
+			console.log("Successfully approved event");
+		} catch (err) {
+			console.error("Failed to approve/rescind approval of event")
+			console.error(err)
+			console.log(submissionObj)
+		}
+	}
+
+	const closeDialog = () => {
+		setDialog(false);
+		setImagePreview(null);
+		setImageFile(null);
+		setImageURL("");
+		setDialogDate("");
+		setDialogEdit({});
 	}
 
   return (
     <>
     	<h1 style={{ textAlign:"center"}}>{"IITK Student's Gymkhana Event Calendar"}</h1>
-    	<Dialog open={dialogOpen} 
-    	onClose={() => {
-    		setDialog(false);
-    		setImagePreview(null);
-    		setImageFile(null);
-    	}} fullWidth>
+    	<Dialog open={!!dialogOpen} 
+    	onClose={closeDialog} fullWidth>
       	<Card name="add-event" ref={addEventFormRef} component={"form"} className="box" id="myform" sx={{width: "100%", display:"flex", flexDirection:"column", gap:"10px", overflow:"auto"}} onSubmit={async (e) => {
       		e.preventDefault();
+      		let submissionObj = {}
       		try {
   	    		let formData = new FormData(addEventFormRef.current);
 	      		console.log(formData);
@@ -334,36 +446,62 @@ function App() {
 					 		throw new Error("Event start time before current time");
 						}
 						
-						//push event!!!						
-						await push(child(requestedRef, formData.get("org")), {
+						submissionObj = {
 							name:formData.get("name"),
 							date:(new Date(formData.get("date") + " " + formData.get("start"))).getTime(),
 							desc:formData.get("desc"),
 							duration:(Number(endH) - Number(startH))*60 + (Number(endM) - Number(startM)),
 							image:imageURL,
-							venue:"",
-						})
-						console.log("Pushed event successfully");
+							venue:formData.get("venue"),
+						}
+						
+						if (dialogOpen === "add") {
+							//push event!!!						
+							await push(child(requestedRef, formData.get("org")), submissionObj)
+							console.log("Pushed event successfully");
+						} else if (dialogOpen === "edit") {
+							if (formData.get("org") !== dialogEdit.orgKey) {
+								const newKey = await push(child((dialogEdit.status === "requested" ? requestedRef : approvedRef), formData.get("org"))).key;
+								await update((dialogEdit.status === "requested" ? requestedRef : approvedRef), {
+									[`/${dialogEdit.orgKey}/${dialogEdit.key}`]:null,
+									[`${formData.get("org")}/${newKey}`]: submissionObj
+								});
+							} else {
+								await update(child(
+									child(
+										(dialogEdit.status === "requested" ? requestedRef : approvedRef),
+										dialogEdit.orgKey
+									),
+									dialogEdit.key
+								), submissionObj);
+							}
+						}
+						console.log("Success")
+						closeDialog();
 					} catch (err) {
 						//something fucked up
 						setEventError(true);
 						console.error("Error in adding event");
 						console.error(err);
+						console.error("Event:")
+						console.log(submissionObj);
+						console.log(dialogEdit);
 					}
 				}}>
       		<h1>Add an Event</h1>
       		<FormControl fullWidth>
       			<InputLabel>Organisation</InputLabel>
-						<Select label="Organisation" name="org">
+						<Select label="Organisation" name="org" defaultValue={dialogEdit.orgKey}>
+							<MenuItem value={undefined} disabled />
 							{Object.keys(privileges).map(el => <MenuItem value={el} key={el}>{entities[el]}</MenuItem>)}
 						</Select>
 					</FormControl>
 					<div style={{width:"100%", display:"flex", gap:"10px"}}>
-      			<TextField label="Name" name="name" fullWidth required/>
-      			<TextField label="Venue" name="venue" fullWidth required />
+      			<TextField label="Name" name="name" defaultValue={dialogEdit.name} fullWidth required/>
+      			<TextField label="Venue" name="venue" defaultValue={dialogEdit.venue} fullWidth required />
       		</div>
-      		<TextField label="Description (will be mailed as well)" name="desc" multiline fullWidth required/>
-      		<div style={{display:"flex", width:"100%", gap: "10px"}}><TextField helperText="Date" name="date" type="date" defaultValue={dialogDate} onChange={(e) => {setDialogDate(e.target.value)}} sx={{flexGrow: "3"}} required/><TextField helperText="Start Time" name="start" type="time" sx={{flexGrow: "2"}} required/><TextField helperText="End Time" name="end" type="time" sx={{flexGrow: "2"}} required/></div>
+      		<TextField label="Description (will be mailed as well)" name="desc" defaultValue={dialogEdit.desc} multiline fullWidth required/>
+      		<div style={{display:"flex", width:"100%", gap: "10px"}}><TextField helperText="Date" name="date" type="date" defaultValue={dialogDate} onChange={(e) => {setDialogDate(e.target.value)}} sx={{flexGrow: "3"}} required/><TextField helperText="Start Time" name="start" type="time" defaultValue={dialogEdit.start} sx={{flexGrow: "2"}} required/><TextField helperText="End Time" name="end" type="time" defaultValue={dialogEdit.end} sx={{flexGrow: "2"}} required/></div>
       		<div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:"10px", width: "100%"}}>
       			<h3>Upload image (max 5 MB, PNG, JPG, GIF only)</h3>
       			<div style={{display:"flex", width:"100%", gap: "10px", alignItems:"center", justifyContent:"space-between"}}>
@@ -416,9 +554,9 @@ function App() {
       			</ul>
       			</div>)}
       			<h5>Image Preview</h5>
-      			<img src={imagePreview} alt="Your uploaded image" className="box" style={{width:"100%"}}/>
+      			<img src={!!imageFile ? imagePreview : imageURL} alt="Your uploaded image" className="box" style={{width:"100%"}}/>
       		</div>
-      		<Button variant="contained" type="submit">Add Event (pending GenSec approval)</Button>
+      		<Button variant="contained" type="submit">{dialogOpen} Event</Button>
       		{eventError && <div style={{color:"red"}}>
       			<p>Error, please check the console for more details. Make sure that: </p>
       			<ul>
@@ -430,13 +568,18 @@ function App() {
       	</Card>
       </Dialog>
       <Box sx={{width: "90%", margin:"auto"}}>
-				<Grid spacing={6} container>
-					<Grid item xs={12} md={8}>
-					<Calendar className="box" allowAddEvent={true || user} events={allEvents} addEvent={addEvent} style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/>
+				<Grid spacing={2} container>
+					<Grid item xs={12} md={9}>
+					<Calendar className="box" allowAddEvent={user} events={allEvents} addEvent={addEvent} deleteEvent={deleteEvent} editEvent={editEvent} editEventApproval={editEventApproval} privilege={privileges} style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/>
 					</Grid>
-					<Grid item xs={12} md={4}>
-						<Box className="box" sx={{width: "100%"}}>
+					<Grid item xs={12} md={3}>
+						<Box className="box" sx={{width: "100%", backgroundColor:theme.primaryColor, color:theme.secondaryColor}}>
 							<h1>Upcoming Events</h1>
+							<ThemeProvider theme={theme}>
+							{allEvents.filter(event => (event.date - Date.now() > 0) && (event.date - Date.now() < 1000*60*60*24*7)).map((event, idx) => (
+							<Event event={event} index={idx} withDate canEdit={!!privileges[event.orgKey]} canApprove={privileges[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={theme.primaryColor} style={{width:"100%"}} />
+							))}
+							</ThemeProvider>
 						</Box>
 					</Grid>
 					<Grid item xs={12}>

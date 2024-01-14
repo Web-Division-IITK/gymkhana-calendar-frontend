@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import helperFunctions from "./helpers/functions";
 import translations from "./helpers/translations";
-import { CHEVRON_ICON_SVG, CLOCK_ICON_SVG, DETAILS_ICON_SVG, SIDEBAR_ICON_SVG } from "./helpers/consts";
+import { CHEVRON_ICON_SVG, CLOCK_ICON_SVG, DETAILS_ICON_SVG, SIDEBAR_ICON_SVG, PEOPLE_ICON_SVG, VENUE_ICON_SVG } from "./helpers/consts";
 import { ThemeProvider } from "styled-components";
-import { Calendar, CloseDetail, CloseSidebar, Day, DayButton, Details, Event as EventDiv, Inner, MonthButton, Sidebar, MonthHeader} from "./styles";
+import { Calendar, CloseDetail, CloseSidebar, ChevronButton, Day, DayButton, Details, Event as EventDiv, Inner, MonthButton, Sidebar, MonthHeader, Button} from "./styles";
 
 // -1 = animate closing | 0 = nothing | 1 = animate opening.
 let animatingSidebar = 0;
@@ -11,20 +11,135 @@ let animatingDetail = 0;
 
 //assumes events is sorted, please sort the prop in parent component!!!
 
+export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent, editEventApproval, editEvent, primaryColorRGB, theme, lang = "en", detailDateFormat = "DD/MM/YYYY", animationSpeed = 300, languages = translations, timeFormat24 = true}) => {
+	const [expanded, setExpanded] = useState(false);
+	const divRef = useRef(null);
+	//have to use a ref for the description div because
+	//css doesn't have transitions for height:auto
+	//so height needs to be manually set on expansion -_-
+	/*
+	event properties:
+	name
+	date (unix timestamp -> includes start time as well)
+	venue
+	org (organisation, e.g. club, or council, or cell, etc.)
+	duration
+	x extra {
+		icon
+		text
+	} x (removed)
+	image (to add)
+	desc (added)
+	*/
+	//delete button for "Are you sure? prompt"
+	const DeleteButton = () => {
+		const [clicked, setClicked] = useState(false);
+		return (
+			!clicked ? (
+			<Button
+			onClick={() => {setClicked(true);}}>{event.status === "requested" ? "Delete" : "Cancel"}</Button>
+			) : (
+				<div>
+				Are you sure? {event.status === "approved" && "This will delete the event."}
+				<Button onClick={() => {deleteEvent(event)}}>Yes</Button>
+				<Button onClick={() => {setClicked(false);}}>No</Button>
+				</div>
+			)
+		)
+	}
+	
+	const DenyButton = () => {
+		const [clicked, setClicked] = useState(false);
+		return (
+			!clicked ? (
+			<Button
+			onClick={() => {setClicked(true);}}>Deny</Button>
+			) : (
+				<div>
+				Are you sure? This will delete the event.
+				<Button onClick={() => {deleteEvent(event)}}>Yes</Button>
+				<Button onClick={() => {setClicked(false);}}>No</Button>
+				</div>
+			)
+		)
+	}
+
+	return (
+		<EventDiv key={index} role="button">
+			{event.status === "requested" && <div>[Requested]</div>}
+			{(canEdit || canApprove) && <div>
+			{canEdit && <div><Button onClick={() => {editEvent(event)}}>Edit</Button><DeleteButton /></div>}
+			{canApprove && event.status === "requested" && <div><Button onClick={() => {editEventApproval(event)}}>Approve</Button><DenyButton /></div>}
+			{canApprove && event.status === "approved" && <div><Button onClick={() => {editEventApproval(event)}}>Rescind Approval</Button></div>}
+			</div>}
+			
+			<div style={{justifyContent:"space-between"}}>
+				<ChevronButton
+				angle={expanded ? 180 : 0}
+				action={() => {
+					setExpanded(!expanded);
+				}} style={{width:"100%", alignItems:"center"}}><h2 style={{width:"80%", textAlign:"left", whiteSpace:"nowrap", overflowX:"auto"}}>{event.name}</h2></ChevronButton>
+			</div>
+			{withDate && (
+			<div>
+				<svg width="20" height="20" viewBox="0 0 24 24">
+					<path fill={primaryColorRGB} d={SIDEBAR_ICON_SVG}/>
+				</svg>
+				<span>{helperFunctions.getFormattedDate(new Date(event.date), detailDateFormat, lang, languages)}</span>
+			</div>)}
+			<div>
+					<svg width="20" height="20" viewBox="0 0 24 24">
+						<path fill={primaryColorRGB} d={CLOCK_ICON_SVG}/>
+					</svg>
+					<span>{helperFunctions.getFormattedTime(new Date(event.date), timeFormat24)} to {helperFunctions.getFormattedTime(new Date(event.date + event.duration*60*1000), timeFormat24)}</span>
+			</div>
+			<div>
+					<svg width="20" height="20" viewBox="0 0 24 24">
+						<path fill={primaryColorRGB} d={PEOPLE_ICON_SVG}/>
+					</svg>
+					<span>{event.org}</span>
+			</div>
+			<div>
+					<svg width="20" height="20" viewBox="0 0 24 24">
+						<path fill={primaryColorRGB} d={VENUE_ICON_SVG}/>
+					</svg>
+					<span>{event.venue}</span>
+			</div>
+			<div
+			style={{
+				height:`${expanded ? (divRef.current.scrollHeight + 5) + "px" : "0px"}`,
+				transition: `height ${animationSpeed}ms ease`,
+				overflow:"hidden",
+			}}>
+				<div style={{display:"block"}} ref={divRef}>
+				{event.image != "" && <img className="box" style={{width:"100%"}} src={event.image} alt="Event poster" />}
+				{event.desc}								
+				</div>
+				
+			</div>
+		</EventDiv>
+	)
+}
+
+
 const RevoCalendar = ({
 	style = {},
 	className = "",
 	events = [],
+	privilege = {},
 	highlightToday = true,
 	lang = "en",
-	primaryColor = "#000",
+	primaryColor = "#333",
 	secondaryColor = "#fff",
 	todayColor = "#3B3966",
 	textColor = "#f00",
 	indicatorColor = "orange",
+	otherIndicatorColor = "#08e",
 	animationSpeed = 300,
 	sidebarWidth = 180,
-	detailWidth = 280,
+	detailWidth = 360,
+	detailWidthFraction = 0.6, 
+	//overrides detailWidth, effectively the same as putting detailWidth = 40%
 	showDetailToggler = true,
 	detailDefault = "day",
 	showSidebarToggler = true,
@@ -42,12 +157,15 @@ const RevoCalendar = ({
 	eventSelected = () => { },
 	addEvent = () => { },
 	deleteEvent = () => { },
+	editEvent = () => { },
+	editEventApproval = () => { },
 }) => {
     // Transform any passed color format into rgb.
     const primaryColorRGB = helperFunctions.getRGBColor(primaryColor);
     const secondaryColorRGB = helperFunctions.getRGBColor(secondaryColor);
     const todayColorRGB = helperFunctions.getRGBColor(todayColor);
     const indicatorColorRGB = helperFunctions.getRGBColor(indicatorColor);
+    const otherIndicatorColorRGB = helperFunctions.getRGBColor(otherIndicatorColor);
     const textColorRGB = helperFunctions.getRGBColor(textColor);
     const calendarRef = useRef(null);
     
@@ -69,6 +187,7 @@ const RevoCalendar = ({
     }
     
     const calendarWidth = useCalendarWidth();
+    if (detailWidthFraction) detailWidth = calendarWidth*detailWidthFraction;
     
     // If calendar width can't fit both panels, force one panel at a time.
     if (calendarWidth <= 320 + sidebarWidth + detailWidth) {
@@ -142,27 +261,18 @@ const RevoCalendar = ({
             }
         }
         
-        function ChevronButton({ angle, color, action, ariaLabel, }) {
-            return (<button onClick={action} aria-label={ariaLabel}>
-          <svg aria-hidden="true" focusable="false" width="1em" height="1em" style={{ transform: `rotate(${angle}deg)` }} preserveAspectRatio="xMidYMid meet" viewBox="0 0 8 8">
-            <path d={CHEVRON_ICON_SVG} fill={color}/>
-            <rect x="0" y="0" width="8" height="8" fill="rgba(0, 0, 0, 0)"/>
-          </svg>
-        </button>);
-        }
-        
         return (<>
-        <Sidebar animatingIn={animatingSidebar === 1} animatingOut={animatingSidebar === -1} sidebarOpen={sidebarOpen} onAnimationEnd={animationEnd}>
+        <Sidebar $animatingIn={animatingSidebar === 1} $animatingOut={animatingSidebar === -1} $sidebarOpen={sidebarOpen} onAnimationEnd={animationEnd}>
           <div>
-            <ChevronButton angle={90} color={secondaryColorRGB} action={prevYear} ariaLabel={languages[lang].previousYear}/>
+            <ChevronButton angle={90} primaryColorScheme={false} action={prevYear} ariaLabel={languages[lang].previousYear}/>
             <span>{currentYear}</span>
-            <ChevronButton angle={270} color={secondaryColorRGB} action={nextYear} ariaLabel={languages[lang].nextYear}/>
+            <ChevronButton angle={270} primaryColorScheme={false} action={nextYear} ariaLabel={languages[lang].nextYear}/>
           </div>
           <div>
             <ul>
               {languages[lang].months.map((month, i) => {
                 return (<li key={i}>
-                    <MonthButton current={i === currentMonth} onClick={() => setMonth(i)}>
+                    <MonthButton $current={i === currentMonth} onClick={() => setMonth(i)}>
                       {month}
                     </MonthButton>
                   </li>);
@@ -170,7 +280,7 @@ const RevoCalendar = ({
             </ul>
           </div>
         </Sidebar>
-        {showSidebarToggler && (<CloseSidebar onClick={toggleSidebar} animatingIn={animatingSidebar === 1} animatingOut={animatingSidebar === -1} sidebarOpen={sidebarOpen} aria-label={languages[lang].toggleSidebar}>
+        {showSidebarToggler && (<CloseSidebar onClick={toggleSidebar} $animatingIn={animatingSidebar === 1} $animatingOut={animatingSidebar === -1} $sidebarOpen={sidebarOpen} aria-label={languages[lang].toggleSidebar}>
             <svg width="24" height="24" viewBox="0 0 24 24">
               <path fill={secondaryColorRGB} d={SIDEBAR_ICON_SVG}/>
             </svg>
@@ -187,18 +297,20 @@ const RevoCalendar = ({
             var isToday = helperFunctions.isToday(index, currentMonth, currentYear);
             var highlight = isToday && highlightToday;
             // var hasEvent = false;
-            let numEvents = 0;
+            let numApprovedEvents = 0;
+            let numRequestedEvents = 0;
             for (let indexEvent = 0; indexEvent < events.length; indexEvent++) {
                 const currentDate = new Date(currentYear, currentMonth, index);
                 // Take out time from passed timestamp in order to compare only date
                 var tempDate = new Date(events[indexEvent].date);
                 tempDate.setHours(0, 0, 0, 0);
                 if (tempDate.getTime() === currentDate.getTime()) {
-                    numEvents++;
+                	if (events[indexEvent].status === "approved") numApprovedEvents++;
+                	if (events[indexEvent].status === "requested") numRequestedEvents++;
                 }
             }
             const day = (
-            <DayButton today={highlight} current={index === currentDay && detailsOpen === "day"} numEvents={numEvents} onClick={() => {
+            <DayButton $today={highlight} $current={index === currentDay && detailsOpen === "day"} $numApprovedEvents={numApprovedEvents} $numRequestedEvents={numRequestedEvents} onClick={() => {
 								setDay(index);
 								if (openDetailsOnDateSelection && !detailsOpen) {
 										animatingDetail = 1;
@@ -230,7 +342,16 @@ const RevoCalendar = ({
 						}
 					}
 				}}>
-        <MonthHeader current={detailsOpen === "month"} onClick={() => {
+				<div style={{display:"flex", justifyContent:"center", alignItems:"center", margin:"auto", width:"250px"}}>
+				<ChevronButton angle={90} primaryColorScheme={true} ariaLabel={languages[lang].previousYear} 
+				action={() => {
+					if (currentMonth == 0) {
+						setYear(currentYear - 1);
+						setMonth(11);
+					} else setMonth(currentMonth - 1);
+				}}
+				/>
+        <MonthHeader $current={detailsOpen === "month"} onClick={() => {
         	//open details view to month to see events of month
         	//no need to set month because it is already current month
         	if (openDetailsOnDateSelection && !detailsOpen) {
@@ -245,6 +366,15 @@ const RevoCalendar = ({
 						setDetailsState("month")
 					}
         }}>{languages[lang].months[currentMonth]}</MonthHeader>
+        <ChevronButton angle={270} primaryColorScheme={true} ariaLabel={languages[lang].previousYear} 
+				action={() => {
+					if (currentMonth == 11) {
+						setYear(currentYear + 1);
+						setMonth(0);
+					} else setMonth(currentMonth + 1);
+				}}
+				/>
+        </div>
         <div>
           <div>
             {languages[lang].daysShort.map((weekDay) => {
@@ -253,7 +383,7 @@ const RevoCalendar = ({
           </div>
           <div>
             {days.map((day, i) => {
-							return (<Day firstDay={i === 0} key={i} firstOfMonth={helperFunctions.getFirstWeekDayOfMonth(currentMonth, currentYear) + 1}>
+							return (<Day $firstDay={i === 0} key={i} $firstOfMonth={helperFunctions.getFirstWeekDayOfMonth(currentMonth, currentYear) + 1}>
 								{day}
 							</Day>);
             })}
@@ -283,75 +413,31 @@ const RevoCalendar = ({
             }
         }
         
-        function toggleDeleteButton(i) {
-            // Give parent component the current selected event.
-            eventSelected(i);
-            if (allowDeleteEvent) {
-                showDelete === i ? setDeleteState(-1) : setDeleteState(i);
-            }
-        }
-        
-        
-        
-        const Event = ({event, index, withDate}) => {
-        /*
-        event properties:
-        name
-        date (unix timestamp -> includes start time as well)
-        venue
-        org (organisation, e.g. club, or council, or cell, etc.)
-        duration
-        x extra {
-        	icon
-        	text
-        } x (removed)
-        image (to add)
-        desc (added)
-        */
-        	return (
-						<EventDiv key={index} onClick={() => toggleDeleteButton(index)} role="button">
-							<p>{event.name}</p>
-							<div>
-								<div>
-									<svg width="20" height="20" viewBox="0 0 24 24">
-										<path fill={primaryColorRGB} d={CLOCK_ICON_SVG}/>
-									</svg>
-									{withDate && (<span>{helperFunctions.getFormattedDate(new Date(event.date), detailDateFormat, lang, languages)}</span>)}
-									<span>{helperFunctions.getFormattedTime(new Date(event.date), timeFormat24)} to {helperFunctions.getFormattedTime(new Date(event.date + event.duration*60*1000), timeFormat24)}</span>
-								</div>
-								{event.desc && (<div>
-										<span>{event.desc}</span>
-									</div>)}
-							</div>
-							{showDelete === index && <button onClick={() => deleteEvent(index)}>{languages[lang].delete}</button>}
-						</EventDiv>
-        	)
-        }
-        
-        console.log(events);
+//         console.log(events);
         const eventDivs = [];
         for (let index = 0; index < events.length; index++) {
             var eventDate = new Date(events[index].date);
             // Take out time from passed timestamp in order to compare only date
             var tempDate = new Date(events[index].date);
+            var event = events[index]
             tempDate.setHours(0, 0, 0, 0);
             if (detailsOpen === "day") {
 							if (helperFunctions.isValidDate(eventDate) && tempDate.getTime() === selectedDate.getTime()) {
-									const event = (
-									<Event index={index} event={events[index]} />
+									const eventdiv = (
+									<Event index={index} event={events[index]} canEdit={!!privilege[event.orgKey]} canApprove={privilege[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={primaryColorRGB} />
 									);
-									eventDivs.push(event);
+									eventDivs.push(eventdiv);
 							}
 						} else if (detailsOpen === "month") {
 							if (helperFunctions.isValidDate(eventDate) && tempDate.getMonth() === selectedDate.getMonth() && tempDate.getYear() === selectedDate.getYear()) {
-									const event = (
-									<Event index={index} event={events[index]} withDate />
+									const eventdiv = (
+									<Event index={index} event={events[index]} withDate canEdit={!!privilege[event.orgKey]} canApprove={privilege[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={primaryColorRGB}/>
 									);
-									eventDivs.push(event);
+									eventDivs.push(eventdiv);
 							}
 						}
         }
-        console.log(eventDivs);
+//         console.log(eventDivs);
         // For no-event days add no events text
         // if (eventDivs.length === 0) {
 //         	if (detailsOpen == "day") eventDivs.push(<p key={-1}>{languages[lang].noEventForThisDay}</p>);
@@ -359,22 +445,22 @@ const RevoCalendar = ({
 //         }
 				//No need for this now because number of events indicator
         return (<>
-        <Details animatingIn={animatingDetail === 1} animatingOut={animatingDetail === -1} detailsOpen={detailsOpen} floatingPanels={floatingPanels} onAnimationEnd={animationEnd}>
+        <Details $animatingIn={animatingDetail === 1} $animatingOut={animatingDetail === -1} $detailsOpen={detailsOpen} $floatingPanels={floatingPanels} onAnimationEnd={animationEnd}>
           <div>
             {detailsOpen === "day" && helperFunctions.getFormattedDate(selectedDate, detailDateFormat, lang, languages)}
             {detailsOpen === "month" && `${languages[lang].months[currentMonth]} ${currentYear}`}
-            {allowAddEvent && (<button style={{border:`1px solid ${secondaryColor}`, borderRadius:"5px"}} onClick={() => addEvent(new Date(currentYear, currentMonth, currentDay))}>
+            {allowAddEvent && (<Button onClick={() => addEvent(new Date(currentYear, currentMonth, currentDay))}>
                 {languages[lang].addEvent}
-              </button>)}
+              </Button>)}
           </div>
           <div>
           	<p>{`${eventDivs.length} ${eventDivs.length === 1 ? "event" : "events"}`}</p>
             {eventDivs.map((event) => {
                 return event;
-            })}}
+            })}
           </div>
         </Details>
-        {showDetailToggler && (<CloseDetail onClick={toggleDetails} animatingIn={animatingDetail === 1} animatingOut={animatingDetail === -1} detailsOpen={detailsOpen} aria-label={languages[lang].toggleDetails}>
+        {showDetailToggler && (<CloseDetail onClick={toggleDetails} $animatingIn={animatingDetail === 1} $animatingOut={animatingDetail === -1} $detailsOpen={detailsOpen} aria-label={languages[lang].toggleDetails}>
             <svg width="24" height="24" viewBox="0 0 24 24">
               <path fill={secondaryColorRGB} d={DETAILS_ICON_SVG}/>
             </svg>
@@ -391,6 +477,7 @@ const RevoCalendar = ({
             todayColor: todayColorRGB,
             textColor: textColorRGB,
             indicatorColor: indicatorColorRGB,
+            otherIndicatorColor: otherIndicatorColorRGB,
             animationSpeed: `${animationSpeed}ms`,
             sidebarWidth: `${sidebarWidth}px`,
             detailWidth: `${detailWidth}px`,

@@ -1,6 +1,7 @@
 /* istanbul ignore file */
 //Ignoring jest coverage on this file
-import styled, { css, keyframes } from "styled-components";
+import styled, { css, keyframes, withTheme } from "styled-components";
+import { CHEVRON_ICON_SVG} from "./helpers/consts";
 //Animations
 const slide = (w, inOut) => keyframes `
     from {
@@ -48,7 +49,7 @@ export const Calendar = styled.div `
   }
 `;
 export const Sidebar = styled.div `
-  ${(props) => props.sidebarOpen
+  ${(props) => props.$sidebarOpen
     ? css `
           width: ${(props) => props.theme.sidebarWidth};
           min-width: ${(props) => props.theme.sidebarWidth};
@@ -74,26 +75,20 @@ export const Sidebar = styled.div `
       padding: 10px;
       color: ${(props) => props.theme.secondaryColor};
     }
-    button {
-      background: none;
-      border: none;
-      width: 20px;
-      display: flex;
-    }
   }
   ul {
     list-style: none;
     padding-bottom: 1rem;
     padding-left: 0;
   }
-  ${(props) => props.animatingIn
+  ${(props) => props.$animatingIn
     ? css `
           animation: ${slide(props.theme.sidebarWidth, true)} ${(props) => props.theme.animationSpeed};
           animation-timing-function: ease;
           animation-fill-mode: forwards;
         `
     : ""}
-  ${(props) => props.animatingOut
+  ${(props) => props.$animatingOut
     ? css `
           animation: ${slide(props.theme.sidebarWidth, false)} ${(props) => props.theme.animationSpeed};
           animation-timing-function: ease;
@@ -103,14 +98,14 @@ export const Sidebar = styled.div `
 `;
 export const MonthButton = styled.button `
   border: none;
-  background: ${(props) => (props.current ? props.theme.secondaryColor : "none")};
+  background: ${(props) => (props.$current ? props.theme.secondaryColor : "none")};
   font-size: 1rem;
   display: inline-block;
   width: 100%;
   height: 100%;
   text-align: left;
   padding: 0.4rem 0.5rem;
-  color: ${(props) => (props.current ? props.theme.primaryColor : props.theme.secondaryColor)};
+  color: ${(props) => (props.$current ? props.theme.primaryColor : props.theme.secondaryColor)};
   border-radius: 0;
   &:hover {
     background: ${(props) => props.theme.secondaryColor};
@@ -129,17 +124,17 @@ export const CloseSidebar = styled.button `
   border: none;
   z-index: 10;
   background: ${(props) => props.theme.primaryColor};
-  left: ${(props) => (props.sidebarOpen ? props.theme.sidebarWidth : 0)};
-  z-index: ${(props) => (props.sidebarOpen ? 12 : "auto")};
+  left: ${(props) => (props.$sidebarOpen ? props.theme.sidebarWidth : 0)};
+  z-index: ${(props) => (props.$sidebarOpen ? 12 : "auto")};
 
-  ${(props) => props.animatingIn
+  ${(props) => props.$animatingIn
     ? css `
           animation: ${slideToggler(props.theme.sidebarWidth, "left", true)} ${(props) => props.theme.animationSpeed};
           animation-timing-function: ease;
           animation-fill-mode: forwards;
         `
     : ""}
-  ${(props) => props.animatingOut
+  ${(props) => props.$animatingOut
     ? css `
           animation: ${slideToggler(props.theme.sidebarWidth, "left", false)} ${(props) => props.theme.animationSpeed};
           animation-timing-function: ease;
@@ -154,7 +149,7 @@ export const Day = styled.div `
   height: 60px;
   width: 100%;
   margin: 5px 0;
-  grid-column-start: ${(props) => (props.firstDay ? props.firstOfMonth : "auto")};
+  grid-column-start: ${(props) => (props.$firstDay ? props.$firstOfMonth : "auto")};
 `;
 // export const DayButton = styled.button `
 //   display: flex;
@@ -208,20 +203,20 @@ export const DayButton = styled.button `
   width: clamp(32px, max(1rem, 5vw), 55px);
   height: 0;
   padding-bottom: clamp(32px, max(1rem, 5vw), 55px);
-  background: ${(props) => (props.current ? `${props.theme.primaryColor} !important` : "none")};
-  border: ${(props) => (props.today ? `2px solid ${props.theme.todayColor} !important` : "none")};
+  background: ${(props) => (props.$current ? `${props.theme.primaryColor} !important` : "none")};
+  border: ${(props) => (props.$today ? `2px solid ${props.theme.todayColor} !important` : "none")};
   font-size: min(1rem, 5vw);
-  color: ${(props) => (props.current ? `${props.theme.secondaryColor} !important` : props.theme.textColor)};
+  color: ${(props) => (props.$current ? `${props.theme.secondaryColor} !important` : props.theme.textColor)};
   position: relative;
   &:hover {
     background: ${(props) => props.theme.primaryColor50} !important;
   }
-  ${(props) => props.numEvents > 0
+  ${(props) => props.$numApprovedEvents > 0
     ? css `
           span {
             position: relative;
             &::after {
-              content: ${props => `"${props.numEvents} ${props.numEvents === 1 ? "event" : "events"}"`};
+              content: ${props => `"${props.$numApprovedEvents} ${props.$numApprovedEvents === 1 ? "event" : "events"}"`};
               background-color: ${(props) => props.theme.indicatorColor};
               color: ${props => props.theme.secondaryColor};
               border-radius: 10px;
@@ -230,6 +225,25 @@ export const DayButton = styled.button `
               height: 15px;
               position: absolute;
               bottom: -15px;
+              left: calc(50% - 30px);
+            }
+          }
+        `
+    : ""}
+  ${(props) => props.$numRequestedEvents > 0
+    ? css `
+          span {
+            position: relative;
+            &::before {
+              content: ${props => `"${props.$numRequestedEvents} ${props.$numRequestedEvents === 1 ? "request" : "requests"}"`};
+              background-color: ${(props) => props.theme.otherIndicatorColor};
+              color: ${props => props.theme.secondaryColor};
+              border-radius: 10px;
+              width: 60px;
+              font-size: 8pt;
+              height: 15px;
+              position: absolute;
+              bottom: 18px;
               left: calc(50% - 30px);
             }
           }
@@ -275,7 +289,7 @@ export const Event = styled.div `
   border-radius: 20px;
   background: ${(props) => props.theme.secondaryColor};
   transition: box-shadow ${(props) => props.theme.animationSpeed} ease;
-
+	color: ${props => props.theme.primaryColor};
   & > p {
     font-size: 1.1rem;
     text-align: left;
@@ -287,8 +301,6 @@ export const Event = styled.div `
     display: flex;
     gap: 1rem;
     margin-bottom: 5px;
-    justify-content: space-between;
-
     div {
       display: flex;
       align-items: center;
@@ -310,7 +322,7 @@ export const Details = styled.div `
   overflow: hidden;
   z-index: 15;
 
-  ${(props) => props.detailsOpen
+  ${(props) => props.$detailsOpen
     ? css `
           width: ${(props) => props.theme.detailWidth};
           min-width: ${(props) => props.theme.detailWidth};
@@ -333,13 +345,13 @@ export const Details = styled.div `
     justify-content: center;
     align-items: center;
     flex-direction: column;
-    & > button {
-      border: none;
-      background: none;
-      color: ${(props) => props.theme.secondaryColor};
-      font-size: 0.5em;
-      padding: 5px;
-    }
+//     & > button {
+//       border: none;
+//       background: none;
+//       color: ${(props) => props.theme.secondaryColor};
+//       font-size: 0.5em;
+//       padding: 5px;
+//     }
   }
   & > div:last-of-type {
     display: flex;
@@ -364,16 +376,16 @@ export const Details = styled.div `
       display: none;
     }
 
-    button {
-      border: none;
-      width: 100%;
-      height: 30px;
-      margin-top: 0.5rem;
-      border-radius: 30px;
-      background: ${(props) => props.theme.primaryColor};
-      color: ${(props) => props.theme.secondaryColor};
-      font-size: 0.8rem;
-    }
+//     button {
+//       border: none;
+//       width: 100%;
+//       height: 30px;
+//       margin-top: 0.5rem;
+//       border-radius: 30px;
+//       background: ${(props) => props.theme.primaryColor};
+//       color: ${(props) => props.theme.secondaryColor};
+//       font-size: 0.8rem;
+//     }
 
     & > p {
       padding: 0.8rem;
@@ -382,14 +394,14 @@ export const Details = styled.div `
     }
   }
 
-  ${(props) => props.animatingIn
+  ${(props) => props.$animatingIn
     ? css `
           animation: ${slide(props.theme.detailWidth, true)} ${(props) => props.theme.animationSpeed};
           animation-timing-function: ease;
           animation-fill-mode: forwards;
         `
     : ""}
-  ${(props) => props.animatingOut
+  ${(props) => props.$animatingOut
     ? css `
           animation: ${slide(props.theme.detailWidth, false)} ${(props) => props.theme.animationSpeed};
           animation-timing-function: ease;
@@ -397,7 +409,7 @@ export const Details = styled.div `
         `
     : ""}
 
-  ${(props) => props.floatingPanels
+  ${(props) => props.$floatingPanels
     ? css `
           height: 100%;
           position: absolute;
@@ -424,17 +436,17 @@ export const CloseDetail = styled.button `
     right: 0;
   }
 
-  right: ${(props) => (props.detailsOpen ? props.theme.detailWidth : 0)};
-  z-index: ${(props) => (props.detailsOpen ? 15 : "auto")};
+  right: ${(props) => (props.$detailsOpen ? props.theme.detailWidth : 0)};
+  z-index: ${(props) => (props.$detailsOpen ? 15 : "auto")};
 
-  ${(props) => props.animatingIn
+  ${(props) => props.$animatingIn
     ? css `
           animation: ${slideToggler(props.theme.detailWidth, "right", true)} ${(props) => props.theme.animationSpeed};
           animation-timing-function: ease;
           animation-fill-mode: forwards;
         `
     : ""}
-  ${(props) => props.animatingOut
+  ${(props) => props.$animatingOut
     ? css `
           animation: ${slideToggler(props.theme.detailWidth, "right", false)} ${(props) => props.theme.animationSpeed};
           animation-timing-function: ease;
@@ -449,11 +461,57 @@ export const MonthHeader = styled.h1 `
 	margin: auto;
 	padding: 5px;
 	border-radius: 10px;
-	background-color: ${props => (props.current ? props.theme.primaryColor : "none")};
-	color: ${props => (props.current ? props.theme.secondaryColor : props.theme.primaryColor)} !important; 
+	background-color: ${props => (props.$current ? props.theme.primaryColor : "none")};
+	color: ${props => (props.$current ? props.theme.secondaryColor : props.theme.primaryColor)} !important; 
 	border-width: 0px;
 	&:hover {
 		background-color: ${props => props.theme.primaryColor50};
 		color: ${props => props.theme.secondaryColor} !important;
+	}
+`
+
+const ChevButtonButton = styled.button `
+	box-sizing: border-box;
+	border: solid 1px rgba(0,0,0,0);
+	background-color: ${props => props.$primaryColorScheme ? props.theme.secondaryColor : props.theme.primaryColor};
+	border-radius: 5px !important;
+	padding: 5px;
+	height: fit-content !important;
+	display:flex;
+	justify-content:space-between;
+	color: ${props => (props.$primaryColorScheme ? props.theme.primaryColor : props.theme.secondaryColor)};
+	&:hover {
+		color: ${props => (props.$primaryColorScheme ? props.theme.secondaryColor : props.theme.primaryColor)};
+		background-color: ${props => props.$primaryColorScheme ? props.theme.primaryColor : props.theme.secondaryColor};
+		border: solid 1px ${props => props.theme.primaryColor};
+	}
+	&:hover path {
+		fill: ${props => props.$primaryColorScheme ? props.theme.secondaryColor : props.theme.primaryColor};
+	}
+`
+
+export const ChevronButton = withTheme(({ angle, primaryColorScheme, action, ariaLabel, style, theme, children}) => {
+		return (
+<ChevButtonButton onClick={action} aria-label={ariaLabel} style={{...style}} $primaryColorScheme={primaryColorScheme}>
+	{children}
+	<svg aria-hidden="true" focusable="false" width="1em" height="1em" style={{ transform: `rotate(${angle}deg)`, transition:`transform ${theme.animationSpeed} ease`}} preserveAspectRatio="xMidYMid meet" viewBox="0 0 8 8">
+		<path d={CHEVRON_ICON_SVG} fill={primaryColorScheme ? theme.primaryColor : theme.secondaryColor}/>
+		<rect x="0" y="0" width="8" height="8" fill="rgba(0, 0, 0, 0)"/>
+	</svg>
+</ChevButtonButton>);
+})
+
+export const Button = styled.button `
+	box-sizing: border-box;
+	border: solid 1px ${props => (props.$primaryColorScheme ? props.theme.primaryColor : props.theme.secondaryColor)};
+	background-color: ${props => props.$primaryColorScheme ? props.theme.secondaryColor : props.theme.primaryColor};
+	border-radius: 5px !important;
+	padding: 5px;
+	height: fit-content !important;
+	color: ${props => (props.$primaryColorScheme ? props.theme.primaryColor : props.theme.secondaryColor)};
+	&:hover {
+		color: ${props => (props.$primaryColorScheme ? props.theme.secondaryColor : props.theme.primaryColor)};
+		background-color: ${props => props.$primaryColorScheme ? props.theme.primaryColor : props.theme.secondaryColor};
+		border: solid 1px ${props => (props.$primaryColorScheme ? props.theme.secondaryColor : props.theme.primaryColor)};;
 	}
 `

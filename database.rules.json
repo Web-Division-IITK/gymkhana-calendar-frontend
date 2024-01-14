@@ -1,19 +1,46 @@
 {
   "rules": {
-  	
     "approved": {
-    	".read":true,
+    	".read":"true",
     	"entities": {
-				".write":false
+				".write":"false"
   		},
     	"$entity": {
-    		".write": "auth.token.roles[$entity] === 'approve' || auth.token.admin === true"
+    		"$event": {
+    			".write": "auth.token.roles[$entity] === 'approve' 
+    							|| auth.token.admin === true 
+    							|| (auth.token.roles[$entity] === true 
+    									&& data.exists())"
+    		}
     	}
     },
     "requested": {
     	".read": "auth !== null",
     	"$entity": {
     		".write": "auth.token.roles[$entity] !== null || auth.token.admin === true",
+    		"$eventid": {
+    			"name": {
+    				".validate": "newData.isString() && newData.val() != ''"
+    			},
+    			"desc": {
+    				".validate": "newData.isString() && newData.val() != ''"
+    			},
+    			"venue": {
+    				".validate": "newData.isString() && newData.val() != ''"
+    			},
+    			"date": {
+    				".validate": "newData.isNumber() && newData.val() > (now - (now % 86400000))"
+    			},
+    			"duration": {
+    				".validate": "newData.isNumber() && newData.val() < 1440 - (newData.parent().child('date').val() % 86400000)/60000"
+    			},
+    			"image": {
+    				".validate": "true"
+    			},
+    			"$other": {
+    				".validate": "false"
+    			}
+    		}
     	}
     }
   }
