@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import helperFunctions from "./helpers/functions";
 import translations from "./helpers/translations";
 import { CHEVRON_ICON_SVG, CLOCK_ICON_SVG, DETAILS_ICON_SVG, SIDEBAR_ICON_SVG, PEOPLE_ICON_SVG, VENUE_ICON_SVG } from "./helpers/consts";
-import { ThemeProvider } from "styled-components";
+import { ThemeProvider, useTheme } from "styled-components";
 import { Calendar, CloseDetail, CloseSidebar, ChevronButton, Day, DayButton, Details, Event as EventDiv, Inner, MonthButton, Sidebar, MonthHeader, Button} from "./styles";
 
 // -1 = animate closing | 0 = nothing | 1 = animate opening.
@@ -11,12 +11,33 @@ let animatingDetail = 0;
 
 //assumes events is sorted, please sort the prop in parent component!!!
 
-export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent, editEventApproval, editEvent, primaryColorRGB, theme, lang = "en", detailDateFormat = "DD/MM/YYYY", animationSpeed = 300, languages = translations, timeFormat24 = true}) => {
+export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent, editEventApproval, editEvent, style, lang = "en", detailDateFormat = "DD/MM/YYYY", animationSpeed = 300, languages = translations, timeFormat24 = true}) => {
+	
 	const [expanded, setExpanded] = useState(false);
 	const divRef = useRef(null);
+	const imgRef = useRef(null);
 	//have to use a ref for the description div because
 	//css doesn't have transitions for height:auto
 	//so height needs to be manually set on expansion -_-
+	
+	const theme = useTheme();
+	
+	useEffect(() => {
+		//attach onload handler to event image to make div taller when the image loads
+		if (divRef.current) {
+			let imgElement = divRef.current.querySelector("img");
+			if (imgElement != null) {
+				let imgHandler = () => {
+					//v i.e. if the div isn't currently collapsed
+					if (divRef.current.parentElement.style.height != "0px")
+						divRef.current.parentElement.style.height = `${(divRef.current.scrollHeight + 5)}px`;
+				}
+				imgElement.addEventListener("load", imgHandler);
+				return () => {imgElement.removeEventListener("load", imgHandler);}
+			}
+		}
+	}, [divRef]);
+	
 	/*
 	event properties:
 	name
@@ -65,12 +86,12 @@ export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent,
 	}
 
 	return (
-		<EventDiv key={index} role="button">
+		<EventDiv key={index} role="button" style={style}>
 			{event.status === "requested" && <div>[Requested]</div>}
-			{(canEdit || canApprove) && <div>
-			{canEdit && <div><Button onClick={() => {editEvent(event)}}>Edit</Button><DeleteButton /></div>}
-			{canApprove && event.status === "requested" && <div><Button onClick={() => {editEventApproval(event)}}>Approve</Button><DenyButton /></div>}
-			{canApprove && event.status === "approved" && <div><Button onClick={() => {editEventApproval(event)}}>Rescind Approval</Button></div>}
+			{(canEdit || canApprove) && <div style={{gap:"5px", flexWrap:"wrap"}}>
+			{canEdit && <><Button onClick={() => {editEvent(event)}}>Edit</Button><DeleteButton /></>}
+			{canApprove && event.status === "requested" && <><Button onClick={() => {editEventApproval(event)}}>Approve</Button><DenyButton /></>}
+			{canApprove && event.status === "approved" && <><Button onClick={() => {editEventApproval(event)}}>Rescind Approval</Button></>}
 			</div>}
 			
 			<div style={{justifyContent:"space-between"}}>
@@ -78,30 +99,30 @@ export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent,
 				angle={expanded ? 180 : 0}
 				action={() => {
 					setExpanded(!expanded);
-				}} style={{width:"100%", alignItems:"center"}}><h2 style={{width:"80%", textAlign:"left", whiteSpace:"nowrap", overflowX:"auto"}}>{event.name}</h2></ChevronButton>
+				}} style={{width:"100%", alignItems:"center"}}><h2 style={{width:"80%", textAlign:"left", whiteSpace:"nowrap", overflowX:"auto", margin:"0"}}>{event.name}</h2></ChevronButton>
 			</div>
 			{withDate && (
 			<div>
 				<svg width="20" height="20" viewBox="0 0 24 24">
-					<path fill={primaryColorRGB} d={SIDEBAR_ICON_SVG}/>
+					<path fill={theme.primaryColor} d={SIDEBAR_ICON_SVG}/>
 				</svg>
 				<span>{helperFunctions.getFormattedDate(new Date(event.date), detailDateFormat, lang, languages)}</span>
 			</div>)}
 			<div>
 					<svg width="20" height="20" viewBox="0 0 24 24">
-						<path fill={primaryColorRGB} d={CLOCK_ICON_SVG}/>
+						<path fill={theme.primaryColor} d={CLOCK_ICON_SVG}/>
 					</svg>
 					<span>{helperFunctions.getFormattedTime(new Date(event.date), timeFormat24)} to {helperFunctions.getFormattedTime(new Date(event.date + event.duration*60*1000), timeFormat24)}</span>
 			</div>
 			<div>
 					<svg width="20" height="20" viewBox="0 0 24 24">
-						<path fill={primaryColorRGB} d={PEOPLE_ICON_SVG}/>
+						<path fill={theme.primaryColor} d={PEOPLE_ICON_SVG}/>
 					</svg>
 					<span>{event.org}</span>
 			</div>
 			<div>
 					<svg width="20" height="20" viewBox="0 0 24 24">
-						<path fill={primaryColorRGB} d={VENUE_ICON_SVG}/>
+						<path fill={theme.primaryColor} d={VENUE_ICON_SVG}/>
 					</svg>
 					<span>{event.venue}</span>
 			</div>
@@ -112,7 +133,7 @@ export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent,
 				overflow:"hidden",
 			}}>
 				<div style={{display:"block"}} ref={divRef}>
-				{event.image != "" && <img className="box" style={{width:"100%"}} src={event.image} alt="Event poster" />}
+				{event.image != "" && <img className="box" ref={imgRef} style={{width:"100%"}} src={event.image} alt="Event poster"/>}
 				{event.desc}								
 				</div>
 				
@@ -424,7 +445,7 @@ const RevoCalendar = ({
             if (detailsOpen === "day") {
 							if (helperFunctions.isValidDate(eventDate) && tempDate.getTime() === selectedDate.getTime()) {
 									const eventdiv = (
-									<Event index={index} event={events[index]} canEdit={!!privilege[event.orgKey]} canApprove={privilege[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={primaryColorRGB} />
+									<Event index={index} event={events[index]} canEdit={!!privilege[event.orgKey]} canApprove={privilege[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={primaryColorRGB}/>
 									);
 									eventDivs.push(eventdiv);
 							}
@@ -450,7 +471,7 @@ const RevoCalendar = ({
             {detailsOpen === "day" && helperFunctions.getFormattedDate(selectedDate, detailDateFormat, lang, languages)}
             {detailsOpen === "month" && `${languages[lang].months[currentMonth]} ${currentYear}`}
             {allowAddEvent && (<Button onClick={() => addEvent(new Date(currentYear, currentMonth, currentDay))}>
-                {languages[lang].addEvent}
+                <h3>{languages[lang].addEvent}</h3>
               </Button>)}
           </div>
           <div>
@@ -471,14 +492,15 @@ const RevoCalendar = ({
      * RENDER ACTUAL CALENDAR *
      **************************/
     return (<ThemeProvider theme={{
-            primaryColor: primaryColorRGB,
-            primaryColor50: helperFunctions.getRGBAColorWithAlpha(primaryColorRGB, 0.5),
-            secondaryColor: secondaryColorRGB,
-            todayColor: todayColorRGB,
-            textColor: textColorRGB,
-            indicatorColor: indicatorColorRGB,
-            otherIndicatorColor: otherIndicatorColorRGB,
-            animationSpeed: `${animationSpeed}ms`,
+            // primaryColor: primaryColorRGB,
+//             primaryColor50: helperFunctions.getRGBAColorWithAlpha(primaryColorRGB, 0.5),
+//             secondaryColor: secondaryColorRGB,
+//             todayColor: todayColorRGB,
+//             textColor: textColorRGB,
+//             indicatorColor: indicatorColorRGB,
+//             otherIndicatorColor: otherIndicatorColorRGB,
+//             animationSpeed: `${animationSpeed}ms`,
+//moved to App.js
             sidebarWidth: `${sidebarWidth}px`,
             detailWidth: `${detailWidth}px`,
         }}>

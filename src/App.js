@@ -1,14 +1,32 @@
 import {useEffect, useState, useRef, useReducer, useSyncExternalStore} from "react";
-import {Box, Button, Card, Dialog, FormControl, InputLabel, Grid, MenuItem, Select, TextField} from "@mui/material"
-// import logo from './logo.svg';
-import './App.css';
+
+// import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import Dialog from "@mui/material/Dialog";
+import Fab from "@mui/material/Fab";
+import FormControl from "@mui/material/FormControl";
+import Grid from "@mui/material/Grid";
+import InputLabel from "@mui/material/InputLabel";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
+import TextField from "@mui/material/TextField";
+
+import DarkMode from "@mui/icons-material/DarkMode";
+import LightMode from "@mui/icons-material/LightMode";
+
+import {ThemeProvider as MuiThemeProvider, THEME_ID, createTheme} from "@mui/material/styles"
+
 import Calendar, {Event} from "./revo-calendar"
 import helperFunctions from "./revo-calendar/helpers/functions";
-import { ThemeProvider } from "styled-components";
+
+import styled, { ThemeProvider } from "styled-components";
+
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
 import { getDatabase, ref as dbref, get, push, connectDatabaseEmulator, child, onValue, remove, update } from "firebase/database";
 import { getStorage, connectStorageEmulator, ref as stref, uploadBytes, getDownloadURL} from "firebase/storage";
+import './App.css';
 
 const firebaseConfig = { //it's ok to put these here, I checked
   apiKey: "AIzaSyC8pHMcFe9QcAH-0auLWPwpaIUu3F-UQcw",
@@ -254,41 +272,70 @@ function useFirebase() {//hook to abstract all firebase details
 	}
 }
 
+const lightThemeControls= {
+	primaryColor: "#333",
+	secondaryColor: "#fff",
+	todayColor: "#49d728",
+	textColor: "#000",
+	indicatorColor: "orange",
+	otherIndicatorColor: "#08e",
+	animationSpeed: 300,
+}
 
+const darkThemeControls = {
+	primaryColor: "#ddd",
+	secondaryColor: "#333",
+	todayColor: "#49d728",
+	textColor: "#fff",
+	indicatorColor: "orange",
+	otherIndicatorColor: "#08e",
+	animationSpeed: 300,
+}
+
+const lightTheme={
+	primaryColor: helperFunctions.getRGBColor(lightThemeControls.primaryColor),
+	primaryColor50: helperFunctions.getRGBAColorWithAlpha(helperFunctions.getRGBColor(lightThemeControls.primaryColor), 0.5),
+	secondaryColor: helperFunctions.getRGBColor(lightThemeControls.secondaryColor),
+	todayColor: helperFunctions.getRGBColor(lightThemeControls.todayColor),
+	textColor: helperFunctions.getRGBColor(lightThemeControls.textColor),
+	indicatorColor: helperFunctions.getRGBColor(lightThemeControls.indicatorColor),
+	otherIndicatorColor: helperFunctions.getRGBColor(lightThemeControls.otherIndicatorColor),
+	animationSpeed: `${lightThemeControls.animationSpeed}ms`,
+}
+
+const darkTheme={
+	primaryColor: helperFunctions.getRGBColor(darkThemeControls.primaryColor),
+	primaryColor50: helperFunctions.getRGBAColorWithAlpha(helperFunctions.getRGBColor(darkThemeControls.primaryColor), 0.5),
+	secondaryColor: helperFunctions.getRGBColor(darkThemeControls.secondaryColor),
+	todayColor: helperFunctions.getRGBColor(darkThemeControls.todayColor),
+	textColor: helperFunctions.getRGBColor(darkThemeControls.textColor),
+	indicatorColor: helperFunctions.getRGBColor(darkThemeControls.indicatorColor),
+	otherIndicatorColor: helperFunctions.getRGBColor(darkThemeControls.otherIndicatorColor),
+	animationSpeed: `${darkThemeControls.animationSpeed}ms`,
+}
+
+const Box = styled.div `
+	border: solid 1px ${props => props.theme.primaryColor};
+	border-radius: 5px;
+	padding: 10px;
+`
+
+const StyledForm = styled.form `
+	border: solid 1px ${props => props.theme.primaryColor};
+	border-radius: 5px;
+	padding: 10px;
+`
+
+const StyledImg = styled.img `
+	border: solid 1px ${props => props.theme.primaryColor};
+	border-radius: 5px;
+	padding: 10px;
+`
+
+const muiLightTheme = createTheme({});
+const muiDarkTheme = createTheme({palette: {mode: "dark"}});
 
 function App() {
-	const eventTemplate = { //for reference
-		name: "",
-		date: 0,
-		duration: 0,
-		org: "",
-		image: "",
-		desc: "",
-		venue: "",
-		key: ""
-	}
-	
-	
-	
-	const themeControls={
-		primaryColor: "#333",
-		secondaryColor: "#fff",
-		todayColor: "#3B3966",
-		textColor: "#f00",
-		indicatorColor: "orange",
-		otherIndicatorColor: "#08e",
-		animationSpeed: 300,
-	}
-	const theme={
-		primaryColor: helperFunctions.getRGBColor(themeControls.primaryColor),
-		primaryColor50: helperFunctions.getRGBAColorWithAlpha(helperFunctions.getRGBColor(themeControls.primaryColor), 0.5),
-		secondaryColor: helperFunctions.getRGBColor(themeControls.secondaryColor),
-		todayColor: helperFunctions.getRGBColor(themeControls.todayColor),
-		textColor: helperFunctions.getRGBColor(themeControls.textColor),
-		indicatorColor: helperFunctions.getRGBColor(themeControls.indicatorColor),
-		otherIndicatorColor: helperFunctions.getRGBColor(themeControls.otherIndicatorColor),
-		animationSpeed: `${themeControls.animationSpeed}ms`,
-	}
 	
 	const [dialogOpen, setDialog] = useState(false); //events dialog open or not? can be false, "add", or "edit"
 	const [dialogDate, setDialogDate] = useState(""); //what date to display in the add events form (if adding event)
@@ -296,6 +343,14 @@ function App() {
 	const [userError, setUserError] = useState(false); //login form error status
 	const [eventError, setEventError] = useState(false); //add event form error status
 	const [imageError, setImageError] = useState(false); //image upload error status
+	const [darkMode, setDarkMode] = useState(
+		typeof window !== undefined &&
+		localStorage.getItem("darkMode") === "true"
+	); //light or dark mode, get from localstorage
+	
+	const theme = darkMode ? darkTheme : lightTheme;
+	const calendarTheme = darkMode ? darkThemeControls : lightThemeControls;
+	const muiTheme = darkMode ? muiDarkTheme : muiLightTheme;
 
 	const [imageURL, setImageURL] = useState(""); 
 	//for add event form submission, using state because it's easier to keep
@@ -310,27 +365,21 @@ function App() {
 	const loginFormRef = useRef(null); //ref to login form
 	const addEventFormRef = useRef(null); //ref to add events form 
 
-//v depend on auth state so they have been moved to useFirebase
-// 	const [entities, setEntities] = useState({}); //list of student's gymkhana entities
-// 	const [privileges, setPrivileges] = useState({}) //object storing user privileges for event addition/approval and under which cell
-// 	const [events, setEvents] = useState([]); //array of events that will be displayed
-	
-	const {user, events, entities, privileges} = useFirebase();
-	//using the hook above
+	const {user, events, entities, privileges} = useFirebase();	
 	
 	const allEvents = [...(events.approved.map(el => ({...el, status:"approved"}))), ...(events.requested.map(el => ({...el, status:"requested"})))]
 	
-// 	useEffect(() => {
-// 		console.log("events updated");
-// 	}, [events])
-	
-// 	console.log("events");
-// 	console.log("approved");
-// 	events.approved.forEach(el => {console.log(el)})
-// 	console.log("requested");
-// 	events.requested.forEach(el => {console.log(el)})
-// 	console.log("allEvents");
-// 	console.log(allEvents);
+	useEffect(() => {
+		//whenever darkmode changes, change body background color and save pref to localStorage
+		
+		document.body.style.backgroundColor = theme.secondaryColor;
+		document.body.style.color = theme.textColor;
+		if (darkMode) { //has been set to true
+			localStorage.setItem("darkMode", "true");
+		} else { //has been set to false
+			localStorage.removeItem("darkMode");
+		}
+	}, [darkMode])
 	
 	useEffect(() => {
 		//whenever imageFile changes, set up a FileReader to
@@ -424,10 +473,19 @@ function App() {
 
   return (
     <>
-    	<h1 style={{ textAlign:"center"}}>{"IITK Student's Gymkhana Event Calendar"}</h1>
+    	<ThemeProvider theme={theme}>
+    	<MuiThemeProvider theme={{[THEME_ID]: muiTheme}}>
+    	<h1 style={{ textAlign:"center", color:theme.textColor}}>{"IITK Student's Gymkhana Event Calendar"}</h1>
+    	<Fab variant="contained" style={{
+    		position:"fixed",
+    		top: "20px",
+    		right: "20px",
+    		zIndex:"10000"
+    	}}
+    	onClick={() => {setDarkMode(!darkMode)}}>{darkMode ? <LightMode /> : <DarkMode />}</Fab>
     	<Dialog open={!!dialogOpen} 
     	onClose={closeDialog} fullWidth>
-      	<Card name="add-event" ref={addEventFormRef} component={"form"} className="box" id="myform" sx={{width: "100%", display:"flex", flexDirection:"column", gap:"10px", overflow:"auto"}} onSubmit={async (e) => {
+      	<Card name="add-event" ref={addEventFormRef} component={StyledForm} id="myform" sx={{width: "100%", display:"flex", flexDirection:"column", gap:"10px", overflow:"auto"}} onSubmit={async (e) => {
       		e.preventDefault();
       		let submissionObj = {}
       		try {
@@ -501,7 +559,10 @@ function App() {
       			<TextField label="Venue" name="venue" defaultValue={dialogEdit.venue} fullWidth required />
       		</div>
       		<TextField label="Description (will be mailed as well)" name="desc" defaultValue={dialogEdit.desc} multiline fullWidth required/>
-      		<div style={{display:"flex", width:"100%", gap: "10px"}}><TextField helperText="Date" name="date" type="date" defaultValue={dialogDate} onChange={(e) => {setDialogDate(e.target.value)}} sx={{flexGrow: "3"}} required/><TextField helperText="Start Time" name="start" type="time" defaultValue={dialogEdit.start} sx={{flexGrow: "2"}} required/><TextField helperText="End Time" name="end" type="time" defaultValue={dialogEdit.end} sx={{flexGrow: "2"}} required/></div>
+      		<div style={{display:"flex", width:"100%", gap: "10px"}}>
+      			<TextField helperText="Date" name="date" type="date" defaultValue={dialogDate} onChange={(e) => {setDialogDate(e.target.value)}} sx={{flexGrow: "3"}} required/>
+      			<TextField helperText="Start Time" name="start" type="time" defaultValue={dialogEdit.start} sx={{flexGrow: "2"}} required/><TextField helperText="End Time" name="end" type="time" defaultValue={dialogEdit.end} sx={{flexGrow: "2"}} required/>
+      		</div>
       		<div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:"10px", width: "100%"}}>
       			<h3>Upload image (max 5 MB, PNG, JPG, GIF only)</h3>
       			<div style={{display:"flex", width:"100%", gap: "10px", alignItems:"center", justifyContent:"space-between"}}>
@@ -554,7 +615,7 @@ function App() {
       			</ul>
       			</div>)}
       			<h5>Image Preview</h5>
-      			<img src={!!imageFile ? imagePreview : imageURL} alt="Your uploaded image" className="box" style={{width:"100%"}}/>
+      			<StyledImg src={!!imageFile ? imagePreview : imageURL} alt="Your uploaded image" style={{width:"100%"}}/>
       		</div>
       		<Button variant="contained" type="submit">{dialogOpen} Event</Button>
       		{eventError && <div style={{color:"red"}}>
@@ -567,25 +628,25 @@ function App() {
       		</div>}
       	</Card>
       </Dialog>
-      <Box sx={{width: "90%", margin:"auto"}}>
+      <div style={{width: "97.5%", margin:"auto"}}>
 				<Grid spacing={2} container sx={{}}>
 					<Grid item xs={12} md={9}>
-					<Calendar className="box" allowAddEvent={user} events={allEvents} addEvent={addEvent} deleteEvent={deleteEvent} editEvent={editEvent} editEventApproval={editEventApproval} privilege={privileges} style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/>
+					<Box style={{padding: "0"}}><Calendar allowAddEvent={user} events={allEvents} addEvent={addEvent} deleteEvent={deleteEvent} editEvent={editEvent} editEventApproval={editEventApproval} privilege={privileges} {...calendarTheme} style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/></Box>
 					</Grid>
 					<Grid item xs={12} md={3}>
-						<Box className="box" sx={{display:"flex", flexDirection:"column", gap:"10px",width: "100%", backgroundColor:theme.primaryColor, color:theme.secondaryColor, height:"520px", overflow:"auto"}}>
+						<Box style={{display:"flex", flexDirection:"column", gap:"10px",width: "100%", backgroundColor:theme.primaryColor, color:theme.secondaryColor, height:"520px"}}>
 							<h1>Upcoming Events</h1>
-							<ThemeProvider theme={theme}>
+							<div style={{overflow:"auto"}}>
 							{allEvents.filter(event => (event.date - Date.now() > 0) && (event.date - Date.now() < 1000*60*60*24*7)).map((event, idx) => (
-							<Event event={event} index={idx} withDate canEdit={!!privileges[event.orgKey]} canApprove={privileges[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={theme.primaryColor} style={{width:"100%"}} />
+							<Event event={event} index={idx} withDate canEdit={!!privileges[event.orgKey]} canApprove={privileges[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={theme.primaryColor} style={{width:"100%", marginBottom:"10px"}} />
 							))}
-							</ThemeProvider>
+							</div>
 						</Box>
 					</Grid>
 					<Grid item xs={12}>
 					{firebaseAuth.currentUser ?
 					(<div style={{width:"100%", display:"flex", justifyContent:"space-evenly"}}>
-						<div>Welcome, {firebaseAuth.currentUser?.displayName}.
+						<div>Welcome, {firebaseAuth.currentUser?.email}.
 						<Button variant="contained" 
 							onClick={() => (signOut(firebaseAuth)
 							.catch((err) => {
@@ -641,7 +702,9 @@ function App() {
 					</h3>)
 					}</Grid>
 				</Grid>
-      </Box>
+      </div>
+  		</MuiThemeProvider>
+  		</ThemeProvider>
     </>
   );
 }

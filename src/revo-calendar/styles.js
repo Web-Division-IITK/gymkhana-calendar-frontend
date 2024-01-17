@@ -283,6 +283,8 @@ export const Inner = styled.div `
     color: ${(props) => props.theme.primaryColor};
   }
 `;
+
+
 export const Event = styled.div `
   width: 90%;
   padding: 10px 15px;

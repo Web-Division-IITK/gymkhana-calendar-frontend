@@ -29,7 +29,7 @@
     				".validate": "newData.isString() && newData.val() != ''"
     			},
     			"date": {
-    				".validate": "newData.isNumber() && newData.val() > (now - (now % 86400000) + 330*60*1000)"
+    				".validate": "(newData.isNumber() && newData.val() > (now - (now % 86400000) + 330*60*1000)) || auth.token.roles[$entity] === 'approve' || auth.token.admin === true"
     			},
     			"duration": {
     				".validate": "newData.isNumber() && newData.val() <= 1440 - ((newData.parent().child('date').val() + 330*60*1000) % (1000*60*60*24))/60000"
