@@ -1,4 +1,4 @@
-import {useEffect, useState, useRef, useReducer, useSyncExternalStore} from "react";
+import {useEffect, useState, useRef} from "react";
 
 // import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -22,254 +22,19 @@ import helperFunctions from "./revo-calendar/helpers/functions";
 
 import styled, { ThemeProvider } from "styled-components";
 
-import { initializeApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
-import { getDatabase, ref as dbref, get, push, connectDatabaseEmulator, child, onValue, remove, update } from "firebase/database";
-import { getStorage, connectStorageEmulator, ref as stref, uploadBytes, getDownloadURL} from "firebase/storage";
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
+import { ref as dbref, push, child, remove, update } from "firebase/database";
+import { ref as stref, uploadBytes, getDownloadURL} from "firebase/storage";
+import { firebaseAuth, firebaseDatabase, firebaseStorage, approvedRef, requestedRef, useFirebase } from "./firebaseUtils";
+
 import './App.css';
 
-const firebaseConfig = { //it's ok to put these here, I checked
-  apiKey: "AIzaSyC8pHMcFe9QcAH-0auLWPwpaIUu3F-UQcw",
-  authDomain: "gymkhanacalendar.firebaseapp.com",
-  projectId: "gymkhanacalendar",
-  storageBucket: "gymkhanacalendar.appspot.com",
-  messagingSenderId: "74846642585",
-  appId: "1:74846642585:web:9abd6791254c250624b308",
-  databaseURL:"https://gymkhanacalendar-default-rtdb.asia-southeast1.firebasedatabase.app/",
-};
-
 function intToBase64(num) {
-	if (num != Math.round(num)) throw new Error("Not an integer");
+	if (num !== Math.round(num)) throw new Error("Not an integer");
 	if (num <= 0) throw new Error("Not positive");
 	let bytes = []
 	for (; num > 0; num = Math.trunc(num/256)) bytes.unshift(num%256);
 	return btoa(new Uint8Array(bytes));
-}
-
-// Initialize Firebase
-const firebaseApp = initializeApp(firebaseConfig);
-const firebaseAuth = getAuth(firebaseApp);
-const firebaseDatabase = getDatabase(firebaseApp);
-const firebaseStorage = getStorage(firebaseApp);
-
-// connectDatabaseEmulator(firebaseDatabase, "127.0.0.1", 9000);
-// connectAuthEmulator(firebaseAuth, "http://127.0.0.1:9099");
-// connectStorageEmulator(firebaseStorage, "127.0.0.1", 9199);
-
-const entitiesRef = dbref(firebaseDatabase, "/entities");
-const approvedRef = dbref(firebaseDatabase, "/approved");
-const requestedRef = dbref(firebaseDatabase, "/requested");
-
-const firebaseAuthStore = {
-	subscribe(callback) {
-		return onAuthStateChanged(firebaseAuth, callback)
-	},
-	getSnapshot() {
-		return firebaseAuth.currentUser
-	}
-}
-
-//some helper functions for firebaseEventsStore
-function unpackEvents(snapshot, status, entities) {
-// 	console.log(`unpackEvents ${status}`)
-	let eventsArr = []
-	snapshot.forEach(el => {
-		if (el.key === "entities") return;
-		//event.val() is an object whose values are events and whose keys are the name of the objects in the database
-		for (const [key, value] of Object.entries(el.val())) {
-			value.org = entities[el.key];
-			value.orgKey = el.key;
-			value.key = key; //for referencing later on if signed in - then updates become dynamic/connection to db opened for constant updates
-			value.status = status;
-			eventsArr.push(value);
-		}
-	});
-	eventsArr.sort((a, b) => (a.date - b.date)); //sorts by start time
-// 	console.log(eventsArr);
-	return eventsArr;
-}
-
-const firebaseEventsStore = {
-	returnValue: {
-		events: {
-			approved: [],
-			requested: []
-		},
-		entities: {}}, //needed for "caching" and because I don't feel like separating this into another store
-	//(react needs to get the same object back if there is no update)
-	eventsUnsub: () => {}, //initialize as 'empty' function
-	authUnsub: null,
-	setReturnValue(obj) {
-		this.returnValue = {
-			...this.returnValue,
-			...obj
-		}
-	},
-	subscribe(callback) {
-// 		console.log("subscribe called");
-		//point of this: when not signed in, subscribing just fetches events and entities
-		//once and then stops
-		if (!firebaseAuth.currentUser) {
-			(async () => {
-// 			console.log("Not signed in");
-// 			console.log("Fetching events data...");
-			let prev = Number(localStorage.getItem("updateTime")); //null if not present
-			// console.log(`Prev is ${prev}`);
-			if (Date.now() - Number(prev) > 5*60*1000) { //min update time: 5 min
-				// console.log("Getting events data from db...");
-				try {
-					let snapshot = await get(approvedRef);
-					// console.log("Fetched events data");
-// 					console.log(snapshot.val())
-					//first: get approved/entities
-					let entities_temp = snapshot.child("entities").val();
-					this.setReturnValue({
-						entities: entities_temp,
-						events: {
-							approved: unpackEvents(snapshot, "approved", entities_temp),
-							requested: this.returnValue.events.requested,
-						}
-					})
-					localStorage.setItem("events",JSON.stringify(this.returnValue.events.approved));
-					localStorage.setItem("entities",JSON.stringify(this.returnValue.entities));
-					console.log("Fetched events and entities!");
-				} catch (err) {
-					console.error("Error in fetching events data");
-					console.error(err);
-				}
-				localStorage.setItem("updateTime", Date.now());
-			} else {// get events localStorage
-				try {
-					let events_approved_temp = localStorage.getItem("events");
-					if (events_approved_temp == null) throw new Error("No events stored!");
-					let entities_temp = localStorage.getItem("entities");
-					if (entities_temp == null) throw new Error("No entities stored!");
-					this.setReturnValue({
-						entities: JSON.parse(entities_temp),
-						events: {
-							approved: JSON.parse(events_approved_temp),
-							requested: this.returnValue.events.requested,
-						}
-					})
-				} catch (err) {
-					console.error("Error in getting events/entities data locally");
-					console.error(err);
-				}
-			}
-			//either way, once everything is done, execute the callback so that react fetches new data
-// 			console.log("callback called");
-			callback();
-			//no cleanup necessary to unsubscribe here
-			})(); //anonymous async function executed immediately
-		}
-		//when signed in: sets up a callback for events and entities
-		//on auth change: if signing out: clean up ^ call back
-		this.authUnsub = onAuthStateChanged(firebaseAuth, () => {
-			//plan: we use onAuthState to set up the callback for events and entities
-			//we can store the callback in eventsUnsub so shouldn't be a problem...?
-			// console.log("onAuthStateChanged callback");
-			if (firebaseAuth.currentUser) {
-				//signed in -> set up callback
-				let approvedUnsub = onValue(approvedRef, (snapshot) => {
-// 					console.log("New approved events data");
-					// console.log(snapshot);
-					this.setReturnValue({
-						events: {
-							approved: unpackEvents(snapshot, "approved", this.returnValue.entities),
-							requested: this.returnValue.events.requested,
-						}
-					})
-					localStorage.setItem("events",JSON.stringify(this.returnValue.events.approved));
-					//call the callback to notify that there is an update
-					callback();	
-				})
-				let requestedUnsub = onValue(requestedRef, (snapshot) => {
-// 					console.log("New requested events data");
-					// console.log(snapshot)
-					this.setReturnValue({
-						events: {
-							approved: this.returnValue.events.approved,
-							requested: unpackEvents(snapshot, "requested", this.returnValue.entities),
-						}
-					})
-					//call the callback
-					callback();	
-				})
-				this.eventsUnsub = () => {
-					//these should be captured because closure
-					// console.log("unsubscribed")
-					approvedUnsub();
-					requestedUnsub();
-				}
-			} else { //i.e. when signing out
-				// console.log("signout unsub");
-				this.setReturnValue({
-					events:{
-						approved: this.returnValue.events.approved,
-						requested: []
-					}
-				})
-				this.eventsUnsub(); //unsubscribe from everything
-				this.eventsUnsub = () => {};
-			}
-		});
-		return () => {
-			this.eventsUnsub();
-			this.authUnsub();
-		}
-	},
-	getSnapshot() {
-// 		console.log("Events requested");
-// 		console.log("approved");
-// 		this.returnValue.events.approved.forEach(el => {console.log(el)})
-// 		console.log("requested");
-// 		this.returnValue.events.requested.forEach(el => {console.log(el)})
-		return this.returnValue; 
-	}
-}
-			
-const firebaseEventsSubscribe = firebaseEventsStore.subscribe.bind(firebaseEventsStore);
-const firebaseEventsSnapshot = firebaseEventsStore.getSnapshot.bind(firebaseEventsStore);
-
-function useFirebase() {//hook to abstract all firebase details
-	const user = useSyncExternalStore(firebaseAuthStore.subscribe, firebaseAuthStore.getSnapshot);
-	const {events, entities} = useSyncExternalStore(
-		firebaseEventsSubscribe, 
-		firebaseEventsSnapshot
-	);
-	//^ both functions use 'this' liberally so need to bind 'this' to firebaseEventsStore
-	
-// 	console.log("Refreshing")
-	
-	const [privileges, setPrivileges] = useState({});
-	// console.log({
-// 		user,
-// 		events,
-// 		entities
-// 	})
-	useEffect(()=> {
-		(async () => {
-		if (user) {
-			let claims = (await firebaseAuth.currentUser.getIdTokenResult()).claims;
-			if (claims.admin) {
-				let temp = {}
-				for (const entity of Object.keys(entities)) {
-					temp[entity] = "approve";
-				}
-				setPrivileges(temp);
-			}
-			else setPrivileges(claims.roles);
-		} else {
-			setPrivileges({});
-		}
-		})();
-	},[user, entities]); //user may load before entities so re-run whenever entities is filled
-	return {
-		user,
-		events,
-		entities,
-		privileges
-	}
 }
 
 const lightThemeControls= {
@@ -314,6 +79,9 @@ const darkTheme={
 	animationSpeed: `${darkThemeControls.animationSpeed}ms`,
 }
 
+// const theme = darkMode ? darkTheme : lightTheme;
+// const calendarTheme = darkMode ? darkThemeControls : lightThemeControls;
+
 const Box = styled.div `
 	border: solid 1px ${props => props.theme.primaryColor};
 	border-radius: 5px;
@@ -344,7 +112,7 @@ function App() {
 	const [eventError, setEventError] = useState(false); //add event form error status
 	const [imageError, setImageError] = useState(false); //image upload error status
 	const [darkMode, setDarkMode] = useState(
-		typeof window !== undefined &&
+		typeof window !== "undefined" &&
 		localStorage.getItem("darkMode") === "true"
 	); //light or dark mode, get from localstorage
 	
@@ -379,7 +147,7 @@ function App() {
 		} else { //has been set to false
 			localStorage.removeItem("darkMode");
 		}
-	}, [darkMode])
+	}, [darkMode, theme /*tell eslint to stfu */])
 	
 	useEffect(() => {
 		//whenever imageFile changes, set up a FileReader to
@@ -631,7 +399,7 @@ function App() {
       <div style={{width: "97.5%", margin:"auto"}}>
 				<Grid spacing={2} container sx={{}}>
 					<Grid item xs={12} md={9}>
-					<Box style={{padding: "0"}}><Calendar allowAddEvent={user} events={allEvents} addEvent={addEvent} deleteEvent={deleteEvent} editEvent={editEvent} editEventApproval={editEventApproval} privilege={privileges} {...calendarTheme} style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/></Box>
+					<Box style={{padding: "0"}}><Calendar allowAddEvent={user} events={allEvents} addEvent={addEvent} deleteEvent={deleteEvent} editEvent={editEvent} editEventApproval={editEventApproval} privilege={privileges} style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/></Box>
 					</Grid>
 					<Grid item xs={12} md={3}>
 						<Box style={{display:"flex", flexDirection:"column", gap:"10px",width: "100%", backgroundColor:theme.primaryColor, color:theme.secondaryColor, height:"520px"}}>
@@ -701,6 +469,10 @@ function App() {
 						</form>
 					</h3>)
 					}</Grid>
+					<Grid item xs={12}>
+					<div>Made by the SnT Web Team 23-24:</div>
+					<div>Deven Gangwani and Divyansh Mittal</div>
+					</Grid>
 				</Grid>
       </div>
   		</MuiThemeProvider>

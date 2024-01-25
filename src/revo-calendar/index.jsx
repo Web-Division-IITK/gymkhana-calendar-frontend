@@ -142,6 +142,238 @@ export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent,
 	)
 }
 
+		/***********************
+     * CALENDAR COMPONENTS *
+     ***********************/
+
+function CalendarDetails({currentYear, currentMonth, currentDay, detailsOpen, setDetailsState, onePanelAtATime, sidebarOpen, setSidebarState, events, privilege, deleteEvent, editEventApproval, editEvent, addEvent, primaryColorRGB, floatingPanels, detailDateFormat, lang, languages, allowAddEvent, secondaryColorRGB, showDetailToggler}) {
+	var selectedDate = new Date(currentYear, currentMonth, currentDay);
+	
+	// Make sure no animation will run on next re-render.
+	function animationEnd() {
+			animatingDetail = 0;
+	}
+	
+	function toggleDetails() {
+			animatingDetail = detailsOpen ? -1 : 1;
+			setDetailsState(detOpen => (detOpen ? false : "day"));
+			// Force sidebar to close if onepanelatatime is true.
+			if (animatingDetail === 1 && onePanelAtATime && sidebarOpen) {
+					animatingSidebar = -1;
+					setSidebarState(false);
+			}
+	}
+	
+//         console.log(events);
+	const eventDivs = [];
+	for (let index = 0; index < events.length; index++) {
+			var eventDate = new Date(events[index].date);
+			// Take out time from passed timestamp in order to compare only date
+			var tempDate = new Date(events[index].date);
+			var event = events[index]
+			tempDate.setHours(0, 0, 0, 0);
+			if (detailsOpen === "day") {
+				if (helperFunctions.isValidDate(eventDate) && tempDate.getTime() === selectedDate.getTime()) {
+						const eventdiv = (
+						<Event index={index} event={events[index]} canEdit={!!privilege[event.orgKey]} canApprove={privilege[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={primaryColorRGB}/>
+						);
+						eventDivs.push(eventdiv);
+				}
+			} else if (detailsOpen === "month") {
+				if (helperFunctions.isValidDate(eventDate) && tempDate.getMonth() === selectedDate.getMonth() && tempDate.getYear() === selectedDate.getYear()) {
+						const eventdiv = (
+						<Event index={index} event={events[index]} withDate canEdit={!!privilege[event.orgKey]} canApprove={privilege[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={primaryColorRGB}/>
+						);
+						eventDivs.push(eventdiv);
+				}
+			}
+	}
+//         console.log(eventDivs);
+	// For no-event days add no events text
+	// if (eventDivs.length === 0) {
+//         	if (detailsOpen == "day") eventDivs.push(<p key={-1}>{languages[lang].noEventForThisDay}</p>);
+//         	else if (detailsOpen == "month") eventDivs.push(<p key={-1}>{"No event for this month..."}</p>);
+//         }
+	//No need for this now because number of events indicator
+	return (<>
+	<Details $animatingIn={animatingDetail === 1} $animatingOut={animatingDetail === -1} $detailsOpen={detailsOpen} $floatingPanels={floatingPanels} onAnimationEnd={animationEnd}>
+		<div>
+			{detailsOpen === "day" && helperFunctions.getFormattedDate(selectedDate, detailDateFormat, lang, languages)}
+			{detailsOpen === "month" && `${languages[lang].months[currentMonth]} ${currentYear}`}
+			{allowAddEvent && (<Button onClick={() => addEvent(new Date(currentYear, currentMonth, currentDay))}>
+					<h3>{languages[lang].addEvent}</h3>
+				</Button>)}
+		</div>
+		<div>
+			<p>{`${eventDivs.length} ${eventDivs.length === 1 ? "event" : "events"}`}</p>
+			{eventDivs.map((event) => {
+					return event;
+			})}
+		</div>
+	</Details>
+	{showDetailToggler && (<CloseDetail onClick={toggleDetails} $animatingIn={animatingDetail === 1} $animatingOut={animatingDetail === -1} $detailsOpen={detailsOpen} aria-label={languages[lang].toggleDetails}>
+			<svg width="24" height="24" viewBox="0 0 24 24">
+				<path fill={secondaryColorRGB} d={DETAILS_ICON_SVG}/>
+			</svg>
+		</CloseDetail>)}
+</>);
+}
+
+function CalendarSidebar({currentYear, currentMonth, setYear, setMonth, sidebarOpen, setSidebarState, onePanelAtATime, detailsOpen, setDetailsState, lang, languages, showSidebarToggler, secondaryColorRGB}) {
+
+		function prevYear() {
+				setYear(currentYear - 1);
+		}
+		
+		function nextYear() {
+				setYear(currentYear + 1);
+		}
+		
+		// Make sure no animation will run on next re-render.
+		function animationEnd() {
+				animatingSidebar = 0;
+		}
+		
+		function toggleSidebar() {
+				animatingSidebar = sidebarOpen ? -1 : 1;
+				setSidebarState(!sidebarOpen);
+				// Force details to close if onepanelatatime is true.
+				if (animatingSidebar === 1 && onePanelAtATime && detailsOpen) {
+						animatingDetail = -1;
+						setDetailsState(false);
+				}
+		}
+		
+		return (<>
+		<Sidebar $animatingIn={animatingSidebar === 1} $animatingOut={animatingSidebar === -1} $sidebarOpen={sidebarOpen} onAnimationEnd={animationEnd}>
+			<div>
+				<ChevronButton angle={90} primaryColorScheme={false} action={prevYear} ariaLabel={languages[lang].previousYear}/>
+				<span>{currentYear}</span>
+				<ChevronButton angle={270} primaryColorScheme={false} action={nextYear} ariaLabel={languages[lang].nextYear}/>
+			</div>
+			<div>
+				<ul>
+					{languages[lang].months.map((month, i) => {
+						return (<li key={i}>
+								<MonthButton $current={i === currentMonth} onClick={() => setMonth(i)}>
+									{month}
+								</MonthButton>
+							</li>);
+				})}
+				</ul>
+			</div>
+		</Sidebar>
+		{showSidebarToggler && (<CloseSidebar onClick={toggleSidebar} $animatingIn={animatingSidebar === 1} $animatingOut={animatingSidebar === -1} $sidebarOpen={sidebarOpen} aria-label={languages[lang].toggleSidebar}>
+				<svg width="24" height="24" viewBox="0 0 24 24">
+					<path fill={secondaryColorRGB} d={SIDEBAR_ICON_SVG}/>
+				</svg>
+			</CloseSidebar>)}
+	</>);
+}
+
+function CalendarInner({currentYear, currentMonth, currentDay, setYear, setMonth, setDay, events, detailsOpen, setDetailsState, onePanelAtATime, sidebarOpen, setSidebarState, floatingPanels, openDetailsOnDateSelection, languages, lang, highlightToday}) {
+	// Get list of days on each month accounting for leap years.
+	const daysInMonths = helperFunctions.isLeapYear(currentYear);
+	const days = [];
+	
+	for (let index = 1; index <= daysInMonths[currentMonth]; index++) {
+			var isToday = helperFunctions.isToday(index, currentMonth, currentYear);
+			var highlight = isToday && highlightToday;
+			// var hasEvent = false;
+			let numApprovedEvents = 0;
+			let numRequestedEvents = 0;
+			for (let indexEvent = 0; indexEvent < events.length; indexEvent++) {
+					const currentDate = new Date(currentYear, currentMonth, index);
+					// Take out time from passed timestamp in order to compare only date
+					var tempDate = new Date(events[indexEvent].date);
+					tempDate.setHours(0, 0, 0, 0);
+					if (tempDate.getTime() === currentDate.getTime()) {
+						if (events[indexEvent].status === "approved") numApprovedEvents++;
+						if (events[indexEvent].status === "requested") numRequestedEvents++;
+					}
+			}
+			const day = (
+			<DayButton $today={highlight} $current={index === currentDay && detailsOpen === "day"} $numApprovedEvents={numApprovedEvents} $numRequestedEvents={numRequestedEvents} onClick={() => {
+					setDay(index);
+					if (openDetailsOnDateSelection && !detailsOpen) {
+							animatingDetail = 1;
+							setDetailsState("day");
+							// Force sidebar to close if onepanelatatime is true.
+							if (onePanelAtATime && sidebarOpen) {
+									animatingSidebar = -1;
+									setSidebarState(false);
+							}
+					} else if (detailsOpen === "month") {
+						setDetailsState("day");
+					}
+			}}>
+				<span style={{marginTop:"clamp(32px, max(1rem, 5vw), 55px)"}}>{index}</span>
+			</DayButton>);
+			days.push(day);
+	}
+	
+	return (
+	<Inner onClick={() => {
+		if (floatingPanels) {
+			if (sidebarOpen) {
+					animatingSidebar = -1;
+					setSidebarState(false);
+			}
+			else if (detailsOpen) {
+					animatingDetail = -1;
+					setDetailsState(false);
+			}
+		}
+	}}>
+	<div style={{display:"flex", justifyContent:"center", alignItems:"center", margin:"auto", width:"250px"}}>
+	<ChevronButton angle={90} primaryColorScheme={true} ariaLabel={languages[lang].previousYear} 
+	action={() => {
+		if (currentMonth == 0) {
+			setYear(currentYear - 1);
+			setMonth(11);
+		} else setMonth(currentMonth - 1);
+	}}
+	/>
+	<MonthHeader $current={detailsOpen === "month"} onClick={() => {
+		//open details view to month to see events of month
+		//no need to set month because it is already current month
+		if (openDetailsOnDateSelection && !detailsOpen) {
+			animatingDetail = 1;
+			setDetailsState("month");
+			// Force sidebar to close if onepanelatatime is true.
+			if (onePanelAtATime && sidebarOpen) {
+				animatingSidebar = -1;
+				setSidebarState(false);
+			}
+		} else if (detailsOpen) {
+			setDetailsState("month")
+		}
+	}}>{languages[lang].months[currentMonth]}</MonthHeader>
+	<ChevronButton angle={270} primaryColorScheme={true} ariaLabel={languages[lang].previousYear} 
+	action={() => {
+		if (currentMonth == 11) {
+			setYear(currentYear + 1);
+			setMonth(0);
+		} else setMonth(currentMonth + 1);
+	}}
+	/>
+	</div>
+	<div>
+		<div>
+			{languages[lang].daysShort.map((weekDay) => {
+				return <div key={weekDay}>{weekDay.toUpperCase()}</div>;
+			})}
+		</div>
+		<div>
+			{days.map((day, i) => {
+				return (<Day $firstDay={i === 0} key={i} $firstOfMonth={helperFunctions.getFirstWeekDayOfMonth(currentMonth, currentYear) + 1}>
+					{day}
+				</Day>);
+			})}
+		</div>
+	</div>
+</Inner>);
+}
 
 const RevoCalendar = ({
 	style = {},
@@ -150,12 +382,12 @@ const RevoCalendar = ({
 	privilege = {},
 	highlightToday = true,
 	lang = "en",
-	primaryColor = "#333",
-	secondaryColor = "#fff",
-	todayColor = "#3B3966",
-	textColor = "#f00",
-	indicatorColor = "orange",
-	otherIndicatorColor = "#08e",
+// 	primaryColor = "#333",
+// 	secondaryColor = "#fff",
+// 	todayColor = "#3B3966",
+// 	textColor = "#f00",
+// 	indicatorColor = "orange",
+// 	otherIndicatorColor = "#08e",
 	animationSpeed = 300,
 	sidebarWidth = 180,
 	detailWidth = 360,
@@ -181,13 +413,16 @@ const RevoCalendar = ({
 	editEvent = () => { },
 	editEventApproval = () => { },
 }) => {
+		
+		const theme = useTheme();
+
     // Transform any passed color format into rgb.
-    const primaryColorRGB = helperFunctions.getRGBColor(primaryColor);
-    const secondaryColorRGB = helperFunctions.getRGBColor(secondaryColor);
-    const todayColorRGB = helperFunctions.getRGBColor(todayColor);
-    const indicatorColorRGB = helperFunctions.getRGBColor(indicatorColor);
-    const otherIndicatorColorRGB = helperFunctions.getRGBColor(otherIndicatorColor);
-    const textColorRGB = helperFunctions.getRGBColor(textColor);
+    const primaryColorRGB = helperFunctions.getRGBColor(theme.primaryColor);
+    const secondaryColorRGB = helperFunctions.getRGBColor(theme.secondaryColor);
+    const todayColorRGB = helperFunctions.getRGBColor(theme.todayColor);
+    const indicatorColorRGB = helperFunctions.getRGBColor(theme.indicatorColor);
+    const otherIndicatorColorRGB = helperFunctions.getRGBColor(theme.otherIndicatorColor);
+    const textColorRGB = helperFunctions.getRGBColor(theme.textColor);
     const calendarRef = useRef(null);
     
     // Get calendar size hook.
@@ -253,241 +488,50 @@ const RevoCalendar = ({
         }
     }, [calendarWidth]);
     
-    /***********************
-     * CALENDAR COMPONENTS *
-     ***********************/
-     
-    function CalendarSidebar() {
     
-        function prevYear() {
-            setYear(currentYear - 1);
-        }
-        
-        function nextYear() {
-            setYear(currentYear + 1);
-        }
-        
-        // Make sure no animation will run on next re-render.
-        function animationEnd() {
-            animatingSidebar = 0;
-        }
-        
-        function toggleSidebar() {
-            animatingSidebar = sidebarOpen ? -1 : 1;
-            setSidebarState(!sidebarOpen);
-            // Force details to close if onepanelatatime is true.
-            if (animatingSidebar === 1 && onePanelAtATime && detailsOpen) {
-                animatingDetail = -1;
-                setDetailsState(false);
-            }
-        }
-        
-        return (<>
-        <Sidebar $animatingIn={animatingSidebar === 1} $animatingOut={animatingSidebar === -1} $sidebarOpen={sidebarOpen} onAnimationEnd={animationEnd}>
-          <div>
-            <ChevronButton angle={90} primaryColorScheme={false} action={prevYear} ariaLabel={languages[lang].previousYear}/>
-            <span>{currentYear}</span>
-            <ChevronButton angle={270} primaryColorScheme={false} action={nextYear} ariaLabel={languages[lang].nextYear}/>
-          </div>
-          <div>
-            <ul>
-              {languages[lang].months.map((month, i) => {
-                return (<li key={i}>
-                    <MonthButton $current={i === currentMonth} onClick={() => setMonth(i)}>
-                      {month}
-                    </MonthButton>
-                  </li>);
-            })}
-            </ul>
-          </div>
-        </Sidebar>
-        {showSidebarToggler && (<CloseSidebar onClick={toggleSidebar} $animatingIn={animatingSidebar === 1} $animatingOut={animatingSidebar === -1} $sidebarOpen={sidebarOpen} aria-label={languages[lang].toggleSidebar}>
-            <svg width="24" height="24" viewBox="0 0 24 24">
-              <path fill={secondaryColorRGB} d={SIDEBAR_ICON_SVG}/>
-            </svg>
-          </CloseSidebar>)}
-      </>);
-    }
-    
-    function CalendarInner() {
-        // Get list of days on each month accounting for leap years.
-        const daysInMonths = helperFunctions.isLeapYear(currentYear);
-        const days = [];
-        
-        for (let index = 1; index <= daysInMonths[currentMonth]; index++) {
-            var isToday = helperFunctions.isToday(index, currentMonth, currentYear);
-            var highlight = isToday && highlightToday;
-            // var hasEvent = false;
-            let numApprovedEvents = 0;
-            let numRequestedEvents = 0;
-            for (let indexEvent = 0; indexEvent < events.length; indexEvent++) {
-                const currentDate = new Date(currentYear, currentMonth, index);
-                // Take out time from passed timestamp in order to compare only date
-                var tempDate = new Date(events[indexEvent].date);
-                tempDate.setHours(0, 0, 0, 0);
-                if (tempDate.getTime() === currentDate.getTime()) {
-                	if (events[indexEvent].status === "approved") numApprovedEvents++;
-                	if (events[indexEvent].status === "requested") numRequestedEvents++;
-                }
-            }
-            const day = (
-            <DayButton $today={highlight} $current={index === currentDay && detailsOpen === "day"} $numApprovedEvents={numApprovedEvents} $numRequestedEvents={numRequestedEvents} onClick={() => {
-								setDay(index);
-								if (openDetailsOnDateSelection && !detailsOpen) {
-										animatingDetail = 1;
-										setDetailsState("day");
-										// Force sidebar to close if onepanelatatime is true.
-										if (onePanelAtATime && sidebarOpen) {
-												animatingSidebar = -1;
-												setSidebarState(false);
-										}
-								} else if (detailsOpen === "month") {
-									setDetailsState("day");
-								}
-						}}>
-							<span style={{marginTop:"clamp(32px, max(1rem, 5vw), 55px)"}}>{index}</span>
-						</DayButton>);
-            days.push(day);
-        }
-        
-        return (
-        <Inner onClick={() => {
-					if (floatingPanels) {
-						if (sidebarOpen) {
-								animatingSidebar = -1;
-								setSidebarState(false);
-						}
-						else if (detailsOpen) {
-								animatingDetail = -1;
-								setDetailsState(false);
-						}
-					}
-				}}>
-				<div style={{display:"flex", justifyContent:"center", alignItems:"center", margin:"auto", width:"250px"}}>
-				<ChevronButton angle={90} primaryColorScheme={true} ariaLabel={languages[lang].previousYear} 
-				action={() => {
-					if (currentMonth == 0) {
-						setYear(currentYear - 1);
-						setMonth(11);
-					} else setMonth(currentMonth - 1);
-				}}
-				/>
-        <MonthHeader $current={detailsOpen === "month"} onClick={() => {
-        	//open details view to month to see events of month
-        	//no need to set month because it is already current month
-        	if (openDetailsOnDateSelection && !detailsOpen) {
-						animatingDetail = 1;
-						setDetailsState("month");
-						// Force sidebar to close if onepanelatatime is true.
-						if (onePanelAtATime && sidebarOpen) {
-							animatingSidebar = -1;
-							setSidebarState(false);
-						}
-					} else if (detailsOpen) {
-						setDetailsState("month")
-					}
-        }}>{languages[lang].months[currentMonth]}</MonthHeader>
-        <ChevronButton angle={270} primaryColorScheme={true} ariaLabel={languages[lang].previousYear} 
-				action={() => {
-					if (currentMonth == 11) {
-						setYear(currentYear + 1);
-						setMonth(0);
-					} else setMonth(currentMonth + 1);
-				}}
-				/>
-        </div>
-        <div>
-          <div>
-            {languages[lang].daysShort.map((weekDay) => {
-              return <div key={weekDay}>{weekDay.toUpperCase()}</div>;
-            })}
-          </div>
-          <div>
-            {days.map((day, i) => {
-							return (<Day $firstDay={i === 0} key={i} $firstOfMonth={helperFunctions.getFirstWeekDayOfMonth(currentMonth, currentYear) + 1}>
-								{day}
-							</Day>);
-            })}
-          </div>
-        </div>
-      </Inner>);
-    }
-    
-    function CalendarDetails() {
-        var selectedDate = new Date(currentYear, currentMonth, currentDay);
-        
-        // Will show delete event button on current showdelete index. -1 won't show anything
-        const [showDelete, setDeleteState] = useState(-1);
-        
-        // Make sure no animation will run on next re-render.
-        function animationEnd() {
-            animatingDetail = 0;
-        }
-        
-        function toggleDetails() {
-            animatingDetail = detailsOpen ? -1 : 1;
-            setDetailsState(detOpen => (detOpen ? false : "day"));
-            // Force sidebar to close if onepanelatatime is true.
-            if (animatingDetail === 1 && onePanelAtATime && sidebarOpen) {
-                animatingSidebar = -1;
-                setSidebarState(false);
-            }
-        }
-        
-//         console.log(events);
-        const eventDivs = [];
-        for (let index = 0; index < events.length; index++) {
-            var eventDate = new Date(events[index].date);
-            // Take out time from passed timestamp in order to compare only date
-            var tempDate = new Date(events[index].date);
-            var event = events[index]
-            tempDate.setHours(0, 0, 0, 0);
-            if (detailsOpen === "day") {
-							if (helperFunctions.isValidDate(eventDate) && tempDate.getTime() === selectedDate.getTime()) {
-									const eventdiv = (
-									<Event index={index} event={events[index]} canEdit={!!privilege[event.orgKey]} canApprove={privilege[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={primaryColorRGB}/>
-									);
-									eventDivs.push(eventdiv);
-							}
-						} else if (detailsOpen === "month") {
-							if (helperFunctions.isValidDate(eventDate) && tempDate.getMonth() === selectedDate.getMonth() && tempDate.getYear() === selectedDate.getYear()) {
-									const eventdiv = (
-									<Event index={index} event={events[index]} withDate canEdit={!!privilege[event.orgKey]} canApprove={privilege[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={primaryColorRGB}/>
-									);
-									eventDivs.push(eventdiv);
-							}
-						}
-        }
-//         console.log(eventDivs);
-        // For no-event days add no events text
-        // if (eventDivs.length === 0) {
-//         	if (detailsOpen == "day") eventDivs.push(<p key={-1}>{languages[lang].noEventForThisDay}</p>);
-//         	else if (detailsOpen == "month") eventDivs.push(<p key={-1}>{"No event for this month..."}</p>);
-//         }
-				//No need for this now because number of events indicator
-        return (<>
-        <Details $animatingIn={animatingDetail === 1} $animatingOut={animatingDetail === -1} $detailsOpen={detailsOpen} $floatingPanels={floatingPanels} onAnimationEnd={animationEnd}>
-          <div>
-            {detailsOpen === "day" && helperFunctions.getFormattedDate(selectedDate, detailDateFormat, lang, languages)}
-            {detailsOpen === "month" && `${languages[lang].months[currentMonth]} ${currentYear}`}
-            {allowAddEvent && (<Button onClick={() => addEvent(new Date(currentYear, currentMonth, currentDay))}>
-                <h3>{languages[lang].addEvent}</h3>
-              </Button>)}
-          </div>
-          <div>
-          	<p>{`${eventDivs.length} ${eventDivs.length === 1 ? "event" : "events"}`}</p>
-            {eventDivs.map((event) => {
-                return event;
-            })}
-          </div>
-        </Details>
-        {showDetailToggler && (<CloseDetail onClick={toggleDetails} $animatingIn={animatingDetail === 1} $animatingOut={animatingDetail === -1} $detailsOpen={detailsOpen} aria-label={languages[lang].toggleDetails}>
-            <svg width="24" height="24" viewBox="0 0 24 24">
-              <path fill={secondaryColorRGB} d={DETAILS_ICON_SVG}/>
-            </svg>
-          </CloseDetail>)}
-      </>);
-    }
+
+		const props = {
+			style,
+			className,
+			events,
+			privilege,
+			highlightToday,
+			lang,
+			animationSpeed,
+			sidebarWidth,
+			detailWidth,
+			detailWidthFraction,
+			showDetailToggler,
+			detailDefault,
+			showSidebarToggler,
+			sidebarDefault,
+			onePanelAtATime,
+			allowDeleteEvent,
+			allowAddEvent,
+			openDetailsOnDateSelection,
+			timeFormat24,
+			showAllDayLabel,
+			detailDateFormat,
+			languages,
+			date,
+			dateSelected,
+			eventSelected,
+			addEvent,
+			deleteEvent,
+			editEvent,
+			editEventApproval,
+			primaryColorRGB,
+			secondaryColorRGB,
+			todayColorRGB,
+			indicatorColorRGB,
+			otherIndicatorColorRGB,
+			textColorRGB,
+		} // last thing before rendering so that any changes made to values are reflected in props
+		
+		// /r/makemesuffer 
+		
+		// console.log(props);
+		
     /**************************
      * RENDER ACTUAL CALENDAR *
      **************************/
@@ -505,9 +549,9 @@ const RevoCalendar = ({
             detailWidth: `${detailWidth}px`,
         }}>
       <Calendar className={className} ref={calendarRef} style={style}>
-        <CalendarSidebar />
-        <CalendarInner />
-        <CalendarDetails />
+        <CalendarSidebar {...{currentYear, currentMonth, setYear, setMonth, sidebarOpen, setSidebarState, onePanelAtATime, detailsOpen, setDetailsState, lang, languages, showSidebarToggler, secondaryColorRGB}}/>
+        <CalendarInner {...{currentYear, currentMonth, currentDay, setYear, setMonth, setDay, events, detailsOpen, setDetailsState, onePanelAtATime, sidebarOpen, setSidebarState, floatingPanels, openDetailsOnDateSelection, languages, lang, highlightToday}}/>
+        <CalendarDetails {...props} {...theme} currentYear={currentYear} currentMonth={currentMonth} currentDay={currentDay} detailsOpen={detailsOpen} setDetailsState={setDetailsState} sidebarOpen={sidebarOpen} setSidebarState={setSidebarState} floatingPanels={floatingPanels}/>
       </Calendar>
     </ThemeProvider>);
 };

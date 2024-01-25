@@ -48,6 +48,7 @@ export const Calendar = styled.div `
     -webkit-font-smoothing: antialiased;
   }
 `;
+
 export const Sidebar = styled.div `
   ${(props) => props.$sidebarOpen
     ? css `
