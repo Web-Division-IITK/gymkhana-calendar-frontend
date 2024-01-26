@@ -100,8 +100,21 @@ const StyledImg = styled.img `
 	padding: 10px;
 `
 
-const muiLightTheme = createTheme({});
-const muiDarkTheme = createTheme({palette: {mode: "dark"}});
+const muiConfig = {
+	components: {
+		MuiButton: {
+			defaultProps: {
+				variant: "contained"
+			}
+		}
+	}
+}
+
+const muiLightTheme = createTheme(muiConfig);
+const muiDarkTheme = createTheme({
+	...muiConfig,
+	palette: {mode: "dark"}
+});
 
 function App() {
 	

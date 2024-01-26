@@ -4,6 +4,7 @@ import translations from "./helpers/translations";
 import { CHEVRON_ICON_SVG, CLOCK_ICON_SVG, DETAILS_ICON_SVG, SIDEBAR_ICON_SVG, PEOPLE_ICON_SVG, VENUE_ICON_SVG } from "./helpers/consts";
 import { ThemeProvider, useTheme } from "styled-components";
 import { Calendar, CloseDetail, CloseSidebar, ChevronButton, Day, DayButton, Details, Event as EventDiv, Inner, MonthButton, Sidebar, MonthHeader, Button} from "./styles";
+import {Dialog, Card, Checkbox, FormGroup, FormControlLabel, Button as MuiButton} from "@mui/material";
 
 // -1 = animate closing | 0 = nothing | 1 = animate opening.
 let animatingSidebar = 0;
@@ -84,13 +85,86 @@ export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent,
 			)
 		)
 	}
+	
+	//this needs a component now because mailto link
+	const ApproveButton = () => {
+	
+		const [dialog, setDialog] = useState(false);
+		const [checked, setChecked] = useState({});
+		
+		const descWithDetailsPre = 
+`Venue: ${event.venue}
+Date and Time: ${helperFunctions.getFormattedDate(new Date(event.date), 'dddd, nth MMMM YYYY', lang, languages)} at ${helperFunctions.getFormattedTime(new Date(event.date), false)}
+Duration: ${
+		(((Math.trunc(event.duration/60) === 1 && "1 hour") ||
+		(Math.trunc(event.duration/60) > 1 && Math.trunc(event.duration/60) + " hours")) || "") + 
+		((Math.trunc(event.duration/60) !== 0 && Math.round(event.duration%60) !==0 && " and ") || "") +
+		(((Math.round(event.duration%60) === 1 && "1 minute") ||
+		(Math.round(event.duration%60) > 1 && (Math.round(event.duration%60) + " minutes"))) || "")
+		}		
+${event.desc}
+`;
+		
+		const descWithDetails = encodeURIComponent(descWithDetailsPre);
+		console.log(descWithDetailsPre);
+		console.log(descWithDetails);
+		
+		//avoid having both students and individual batches in the mailto link
+		const sendArray = Object.entries(checked).filter(el => el[1] === true).map(el => el[0]);
+		const ok = 	(checked["students"] && sendArray.length === 1) //send to all students
+							||(!checked["students"] && sendArray.length > 0) //send to individual batches
+							
+		const mailStr = `mailto:${sendArray.map(el => el + "@lists.iitk.ac.in").join()}?subject=${encodeURIComponent('[' + event.org + '] ' + event.name)}&body=${descWithDetails}`
+		const handleChange = (e) => {
+			setChecked({
+				...checked,
+				[e.target.name]: e.target.checked
+			})
+		};
+		
+		return (
+			<>
+			{/*<Button onClick={() => {editEventApproval(event)}}>Approve</Button>*/}
+			<Button onClick={() => {setDialog(true);}}>Approve</Button>
+			<Dialog open={dialog} onClose={() => {setDialog(false);}}>
+				<Card sx={{width: "100%", padding: "5px 20px", display:"flex", flexDirection:"column", alignItems:"center"}}>
+				<h1>Send mail to campus junta</h1>
+				<FormGroup sx={{width: "100%", display:"flex", flexDirection:"column", alignItems:"center"}}>
+					<FormControlLabel label="All Students" control={
+						<Checkbox name="students" onChange={handleChange} />
+					} />
+					<div style={{display:"grid", grid: "auto-flow / 1fr 1fr", width: "50%"}}>
+					<FormControlLabel label="UG Y20" control={
+						<Checkbox name="ug20" onChange={handleChange} />
+					} /> 
+					<FormControlLabel label="UG Y21" control={
+						<Checkbox name="ug21" onChange={handleChange} />
+					} />
+					<FormControlLabel label="UG Y22" control={
+						<Checkbox name="ug22" onChange={handleChange} />
+					} />
+					<FormControlLabel label="UG Y23" control={
+						<Checkbox name="ug23" onChange={handleChange} />
+					} />
+					</div>
+				</FormGroup>
+				<p style={{color:(!ok ? "red" : ""), width: "100%"}}>Please select more than one group. If you've selected all students, please don't select any other group.</p>
+				<p>Note: I can't attach images with mailto links so to attach the uploaded photo, you'll have to save it and attach it yourself when the email window opens. Sorry!</p>
+				<div style={{width:"100%", display:"flex", justifyContent:"space-between"}}><MuiButton component="a" href={mailStr} disabled={!ok} onClick={() => {setDialog(false);editEventApproval(event);}}>Send email</MuiButton>
+				<MuiButton onClick={() => {setDialog(false);}}>Cancel</MuiButton>
+				<MuiButton onClick={() => {setDialog(false); editEventApproval(event);}}>Approve without sending email</MuiButton></div>
+				</Card>
+			</Dialog>
+			</>
+		)
+	}
 
 	return (
 		<EventDiv key={index} role="button" style={style}>
 			{event.status === "requested" && <div>[Requested]</div>}
 			{(canEdit || canApprove) && <div style={{gap:"5px", flexWrap:"wrap"}}>
 			{canEdit && <><Button onClick={() => {editEvent(event)}}>Edit</Button><DeleteButton /></>}
-			{canApprove && event.status === "requested" && <><Button onClick={() => {editEventApproval(event)}}>Approve</Button><DenyButton /></>}
+			{canApprove && event.status === "requested" && <><ApproveButton /><DenyButton /></>}
 			{canApprove && event.status === "approved" && <><Button onClick={() => {editEventApproval(event)}}>Rescind Approval</Button></>}
 			</div>}
 			
@@ -487,50 +561,6 @@ const RevoCalendar = ({
             setDetailsState(false);
         }
     }, [calendarWidth]);
-    
-    
-
-		const props = {
-			style,
-			className,
-			events,
-			privilege,
-			highlightToday,
-			lang,
-			animationSpeed,
-			sidebarWidth,
-			detailWidth,
-			detailWidthFraction,
-			showDetailToggler,
-			detailDefault,
-			showSidebarToggler,
-			sidebarDefault,
-			onePanelAtATime,
-			allowDeleteEvent,
-			allowAddEvent,
-			openDetailsOnDateSelection,
-			timeFormat24,
-			showAllDayLabel,
-			detailDateFormat,
-			languages,
-			date,
-			dateSelected,
-			eventSelected,
-			addEvent,
-			deleteEvent,
-			editEvent,
-			editEventApproval,
-			primaryColorRGB,
-			secondaryColorRGB,
-			todayColorRGB,
-			indicatorColorRGB,
-			otherIndicatorColorRGB,
-			textColorRGB,
-		} // last thing before rendering so that any changes made to values are reflected in props
-		
-		// /r/makemesuffer 
-		
-		// console.log(props);
 		
     /**************************
      * RENDER ACTUAL CALENDAR *
@@ -545,13 +575,14 @@ const RevoCalendar = ({
 //             otherIndicatorColor: otherIndicatorColorRGB,
 //             animationSpeed: `${animationSpeed}ms`,
 //moved to App.js
+//i know the props look ugly as fuck but they're all necessary and i can't be arsed to rewrite more
             sidebarWidth: `${sidebarWidth}px`,
             detailWidth: `${detailWidth}px`,
         }}>
       <Calendar className={className} ref={calendarRef} style={style}>
         <CalendarSidebar {...{currentYear, currentMonth, setYear, setMonth, sidebarOpen, setSidebarState, onePanelAtATime, detailsOpen, setDetailsState, lang, languages, showSidebarToggler, secondaryColorRGB}}/>
         <CalendarInner {...{currentYear, currentMonth, currentDay, setYear, setMonth, setDay, events, detailsOpen, setDetailsState, onePanelAtATime, sidebarOpen, setSidebarState, floatingPanels, openDetailsOnDateSelection, languages, lang, highlightToday}}/>
-        <CalendarDetails {...props} {...theme} currentYear={currentYear} currentMonth={currentMonth} currentDay={currentDay} detailsOpen={detailsOpen} setDetailsState={setDetailsState} sidebarOpen={sidebarOpen} setSidebarState={setSidebarState} floatingPanels={floatingPanels}/>
+        <CalendarDetails {...{currentYear, currentMonth, currentDay, detailsOpen, setDetailsState, onePanelAtATime, sidebarOpen, setSidebarState, events, privilege, deleteEvent, editEventApproval, editEvent, addEvent, primaryColorRGB, floatingPanels, detailDateFormat, lang, languages, allowAddEvent, secondaryColorRGB, showDetailToggler}}/>
       </Calendar>
     </ThemeProvider>);
 };
