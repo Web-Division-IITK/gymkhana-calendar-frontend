@@ -4,7 +4,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
 import { getDatabase, ref as dbref, get, connectDatabaseEmulator, onValue } from "firebase/database";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
-import { getMessaging } from "firebase/messaging";
+import { getMessaging, onMessage} from "firebase/messaging";
 
 
 const firebaseConfig = { //it's ok to put these here, I checked
@@ -41,20 +41,30 @@ const firebaseAuthStore = {
 	}
 }
 
+onMessage(firebaseMessaging, (payload) => {
+	console.log('Message received. ', payload);
+});
+
 //some helper functions for firebaseEventsStore
 function unpackEvents(snapshot, status, entities) {
+// 	console.log("unpackEvents: entities:");
+// 	console.log(entities);
 // 	console.log(`unpackEvents ${status}`)
 	let eventsArr = []
 	snapshot.forEach(el => {
-		if (el.key === "entities") return;
-		//event.val() is an object whose values are events and whose keys are the name of the objects in the database
-		for (const [key, value] of Object.entries(el.val())) {
-			value.org = entities[el.key];
-			value.orgKey = el.key;
-			value.key = key; //for referencing later on if signed in - then updates become dynamic/connection to db opened for constant updates
-			value.status = status;
-			eventsArr.push(value);
-		}
+		let event = el.val();
+		event.orgKey = event.org;
+		event.org = entities[event.orgKey];
+		event.key = el.key;
+		event.status = status;
+		eventsArr.push(event);
+		// for (const [key, value] of Object.entries(el.val())) {
+// 			value.org = entities[el.key];
+// 			value.orgKey = el.key;
+// 			value.key = key; //for referencing later on if signed in - then updates become dynamic/connection to db opened for constant updates
+// 			value.status = status;
+// 			eventsArr.push(value);
+// 		}
 	});
 	eventsArr.sort((a, b) => (a.date - b.date)); //sorts by start time
 // 	console.log(eventsArr);
@@ -90,11 +100,9 @@ const firebaseEventsStore = {
 			if (Date.now() - Number(prev) > 5*60*1000) { //min update time: 5 min
 				// console.log("Getting events data from db...");
 				try {
+					let entities_temp = (await get(entitiesRef)).val();
+					console.log(entities_temp);
 					let snapshot = await get(approvedRef);
-					// console.log("Fetched events data");
-// 					console.log(snapshot.val())
-					//first: get approved/entities
-					let entities_temp = snapshot.child("entities").val();
 					this.setReturnValue({
 						entities: entities_temp,
 						events: {

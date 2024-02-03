@@ -28,10 +28,25 @@ const Subscribe = ({event}) => {
 				if (subState === false) {
 					console.log(`Attempting to subscribe to event key ${event.key} with user token ${userNotifToken}...`);
 					setLoading(true);
+					try {
+						await event.subscribeEvent();
+						setSubState(true);
+					} catch (err) {
+						console.error(err);
+						setSubState(false);
+					}
 				} else {
 					console.log(`Unsubscribing...`);
 					setLoading(true);
+					try {
+						await event.unsubscribeEvent();
+						setSubState(false);
+					} catch (err) {
+						console.error(err);
+						setSubState(true);
+					}
 				}
+				setLoading(false);
 			}}/> :
 			<Loader />} label={`${!loading ? !subState ? "Subscribe to this event to get updates and reminders." : "Unsubscribe from updates and reminders for this event." : "Loading..."}`} /></div>
 	); 

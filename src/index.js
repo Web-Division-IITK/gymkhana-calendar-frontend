@@ -5,11 +5,13 @@ import App from './App';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
+let registration;
+
 //register service worker
 window.addEventListener('load', async () => {
 	if (!('serviceWorker' in navigator)) return;
 	try {
-		const registration = await navigator.serviceWorker.register("/service-worker.js");
+		registration = await navigator.serviceWorker.register("/service-worker.js");
 		let sw;
 		console.log("Registered service worker");
 		if (registration.installing) {
@@ -24,7 +26,7 @@ window.addEventListener('load', async () => {
 			console.log(sw)
 			sw.postMessage({t:"Hello"})
 		}
-		registration.addEventListener("statechange", (e) => {
+		sw.addEventListener("statechange", (e) => {
 			console.log("State change");
 			console.log(sw.state)
 		})

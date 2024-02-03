@@ -126,13 +126,17 @@ function NotificationDialog({setUserNotifToken}) {
 	useEffect(() => {
 		//on mount: if notification perms given, set token
 		if (Notification.permission !== "granted") return;
-		getToken(firebaseMessaging, {vapidKey: "BAtqNCJaMFjNRNtv0qcgGF_Qg0xu1RjZMZzgeRY_akF5_wC6y5HAP5KvxHjtL8tVdvThTiWHvX617f4xw4r63Q4"}).then((currToken) => {
-			setUserNotifToken(currToken);
-// 			console.log(currToken);
-		}).catch((err) => {
-			console.error("Couldn't get notifications token");
-			console.error(err);
-		});
+		(async () => {
+			getToken(firebaseMessaging, {
+				serviceWorkerRegistration: await navigator.serviceWorker.ready,
+				vapidKey: "BAtqNCJaMFjNRNtv0qcgGF_Qg0xu1RjZMZzgeRY_akF5_wC6y5HAP5KvxHjtL8tVdvThTiWHvX617f4xw4r63Q4"}).then((currToken) => {
+				setUserNotifToken(currToken);
+	// 			console.log(currToken);
+			}).catch((err) => {
+				console.error("Couldn't get notifications token");
+				console.error(err);
+			});
+		})();
 	}, [])
 	
 	return (
@@ -143,8 +147,10 @@ function NotificationDialog({setUserNotifToken}) {
 		action={<>
 			<Button
 				sx={{marginRight:"10px"}}
-				onClick={() => {
-					getToken(firebaseMessaging, {vapidKey: "BAtqNCJaMFjNRNtv0qcgGF_Qg0xu1RjZMZzgeRY_akF5_wC6y5HAP5KvxHjtL8tVdvThTiWHvX617f4xw4r63Q4"}).then((currToken) => {
+				onClick={async () => {
+					getToken(firebaseMessaging, {
+						serviceWorkerRegistration: await navigator.serviceWorker.ready,
+						vapidKey: "BAtqNCJaMFjNRNtv0qcgGF_Qg0xu1RjZMZzgeRY_akF5_wC6y5HAP5KvxHjtL8tVdvThTiWHvX617f4xw4r63Q4"}).then((currToken) => {
 						setUserNotifToken(currToken);
 						console.log(currToken);
 						setNotifDialog(false);
@@ -193,9 +199,6 @@ function App() {
 	
 	const [userNotifToken, setUserNotifToken] = useState("");
 	const [subscribedEventKeys, setSubscribedEventKeys] = useState([]);
-	
-	console.log("Subscribed event keys:");
-	console.log(subscribedEventKeys);
 	
 	let allEvents = ([
 		...(events.approved.map(el => ({...el, status:"approved"}))),
@@ -277,10 +280,7 @@ function App() {
 		try {
 			await remove(
 			child(
-				child(
-					(event.status === "requested" ? requestedRef : approvedRef),
-					event.orgKey
-				),
+				(event.status === "requested" ? requestedRef : approvedRef),
 				event.key
 			));
 		} catch (err) {
@@ -297,7 +297,7 @@ function App() {
 		let end_mins = date.getHours()*60 + date.getMinutes() + event.duration; //num miliseconds since start of day of date/num miliseconds in a minute
 		console.log(end_mins)
 		event.start = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-		event.end = `${Math.trunc(end_mins/60).toString().padStart(2, '0')}:${Math.trunc(end_mins%60)}`
+		event.end = `${Math.trunc(end_mins/60).toString().padStart(2, '0')}:${Math.trunc(end_mins%60).toString().padStart(2, 0)}`
 		console.log(event);
 		setDialogEdit(event);
 		setImageURL(event.image);
@@ -313,20 +313,21 @@ function App() {
 				desc: event.desc,
 				image: event.image,
 				date: event.date,
-				duration: event.duration
+				duration: event.duration,
+				org: event.orgKey
 			}
 			if (event.status === "requested") {//then approve the event
 				const newKey = await push(child(approvedRef, event.orgKey)).key;
 				await update(dbref(firebaseDatabase), {
-					[`/requested/${event.orgKey}/${event.key}`]:null,
-					[`/approved/${event.orgKey}/${newKey}`]: submissionObj
+					[`/requested/${event.key}`]:null,
+					[`/approved/${newKey}`]: submissionObj
 				});
 			} else if (event.status === "approved") {//then unapprove the event i.e. return to requested
 				const newKey = await push(child(requestedRef, event.orgKey)).key;
 				console.log(newKey);
 				await update(dbref(firebaseDatabase), {
-					[`/approved/${event.orgKey}/${event.key}`]:null,
-					[`/requested/${event.orgKey}/${newKey}`]: submissionObj
+					[`/approved/${event.key}`]:null,
+					[`/requested/${newKey}`]: submissionObj
 				});
 			}
 			console.log("Successfully approved event");
@@ -338,11 +339,31 @@ function App() {
 	}
 	
 	async function subscribeEvent(event) {
-		
+		let resp = await fetch(`${process.env.REACT_APP_NOTIF_SERVER}/subscribeToEvent`, {
+			method:"POST",
+			mode: "cors",
+			body:JSON.stringify({
+				userid:String(userNotifToken),
+				eventkey:String(event.key)
+			})
+		});
+		let respjson = await resp.json();
+		if (!resp.ok) throw new Error(`Failed to subscribe ${userNotifToken} to event ${event.key} with error ${respjson.error}`);
+		setSubscribedEventKeys([...subscribedEventKeys, event.key]);
 	}
 	
 	async function unsubscribeEvent(event) {
-	
+		let resp = await fetch(`${process.env.REACT_APP_NOTIF_SERVER}/unsubscribeFromEvent`, {
+			method:"POST",
+			mode: "cors",
+			body:JSON.stringify({
+				userid:String(userNotifToken),
+				eventkey:String(event.key)
+			})
+		});
+		let respjson = await resp.json()
+		if (!resp.ok) throw new Error(`Failed to unsubscribe ${userNotifToken} from event ${event.key} with error ${respjson.error}`);
+		setSubscribedEventKeys(subscribedEventKeys.filter(key => key !== event.key));
 	}
 
 	function closeDialog() {
@@ -396,28 +417,18 @@ function App() {
 							duration:(Number(endH) - Number(startH))*60 + (Number(endM) - Number(startM)),
 							image:imageURL,
 							venue:formData.get("venue"),
+							org: formData.get("org")
 						}
 						
 						if (dialogOpen === "add") {
 							//push event!!!						
-							await push(child(requestedRef, formData.get("org")), submissionObj)
+							await push(requestedRef, submissionObj)
 							console.log("Pushed event successfully");
 						} else if (dialogOpen === "edit") {
-							if (formData.get("org") !== dialogEdit.orgKey) {
-								const newKey = await push(child((dialogEdit.status === "requested" ? requestedRef : approvedRef), formData.get("org"))).key;
-								await update((dialogEdit.status === "requested" ? requestedRef : approvedRef), {
-									[`/${dialogEdit.orgKey}/${dialogEdit.key}`]:null,
-									[`${formData.get("org")}/${newKey}`]: submissionObj
-								});
-							} else {
-								await update(child(
-									child(
-										(dialogEdit.status === "requested" ? requestedRef : approvedRef),
-										dialogEdit.orgKey
-									),
-									dialogEdit.key
-								), submissionObj);
-							}
+							await update(child(
+								(dialogEdit.status === "requested" ? requestedRef : approvedRef),
+								dialogEdit.key
+							), submissionObj);
 						}
 						console.log("Success")
 						closeDialog();
@@ -521,9 +532,6 @@ function App() {
 							allowAddEvent={user} 
 							events={allEvents} 
 							addEvent={addEvent} 
-							deleteEvent={deleteEvent} 
-							editEvent={editEvent} 
-							editEventApproval={editEventApproval} 
 							privilege={privileges} 
 							style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/>
 					</Box>
@@ -542,6 +550,9 @@ function App() {
 						<Box style={{display:"flex", flexDirection:"column", gap:"10px",width: "100%", backgroundColor:theme.primaryColor, color:theme.secondaryColor, height:"300px"}}>
 							<h1>Your Subscribed Events</h1>
 							<div style={{overflow:"auto"}}>
+							{allEvents.filter(event => event.subscribed).map((event, idx) => (
+							<Event event={event} index={idx} key={idx} withDate canEdit={!!privileges[event.orgKey]} canApprove={privileges[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={theme.primaryColor} style={{width:"100%", marginBottom:"10px"}} />
+							))}
 							</div>
 						</Box>
 					</Grid>
