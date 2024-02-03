@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import helperFunctions from "./helpers/functions";
 import translations from "./helpers/translations";
 import { CHEVRON_ICON_SVG, CLOCK_ICON_SVG, DETAILS_ICON_SVG, SIDEBAR_ICON_SVG, PEOPLE_ICON_SVG, VENUE_ICON_SVG } from "./helpers/consts";
 import { ThemeProvider, useTheme } from "styled-components";
-import { Calendar, CloseDetail, CloseSidebar, ChevronButton, Day, DayButton, Details, Event as EventDiv, Inner, MonthButton, Sidebar, MonthHeader, Button} from "./styles";
+import { Calendar, CloseDetail, CloseSidebar, ChevronButton, Day, DayButton, Details, Event as EventDiv, Inner, MonthButton, Sidebar, MonthHeader, Button, Loader} from "./styles";
 import {Dialog, Card, Checkbox, FormGroup, FormControlLabel, Button as MuiButton} from "@mui/material";
+import { UserContext } from "../App.js";
 
 // -1 = animate closing | 0 = nothing | 1 = animate opening.
 let animatingSidebar = 0;
@@ -12,7 +13,134 @@ let animatingDetail = 0;
 
 //assumes events is sorted, please sort the prop in parent component!!!
 
-export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent, editEventApproval, editEvent, style, lang = "en", detailDateFormat = "DD/MM/YYYY", animationSpeed = 300, languages = translations, timeFormat24 = true}) => {
+const Subscribe = ({event}) => {
+	const [subState, setSubState] = useState(event.subscribed);
+	const [loading, setLoading] = useState(false);
+	const {userNotifToken} = useContext(UserContext);
+	
+	useEffect(() => {
+		setSubState(event.subscribed);
+	}, [event]);
+	
+	if (event.status === "approved" && event.date > Date.now() && userNotifToken !== "") return (
+		<div><FormControlLabel control={!loading ?
+			<Checkbox checked={subState} onChange={async () => {
+				if (subState === false) {
+					console.log(`Attempting to subscribe to event key ${event.key} with user token ${userNotifToken}...`);
+					setLoading(true);
+				} else {
+					console.log(`Unsubscribing...`);
+					setLoading(true);
+				}
+			}}/> :
+			<Loader />} label={`${!loading ? !subState ? "Subscribe to this event to get updates and reminders." : "Unsubscribe from updates and reminders for this event." : "Loading..."}`} /></div>
+	); 
+	else return (<></>)
+}
+
+const DeleteButton = ({event, deleteEvent}) => {
+	const [clicked, setClicked] = useState(false);
+	return (
+		!clicked ? (
+		<Button
+		onClick={() => {setClicked(true);}}>{event.status === "requested" ? "Delete" : "Cancel"}</Button>
+		) : (
+			<div>
+			Are you sure? {event.status === "approved" && "This will delete the event."}
+			<Button onClick={() => {event.deleteEvent()}}>Yes</Button>
+			<Button onClick={() => {setClicked(false);}}>No</Button>
+			</div>
+		)
+	)
+};
+
+//this needs a component now because mailto link
+const ApproveButton = ({event, lang, languages}) => {
+	const [dialog, setDialog] = useState(false);
+	const [checked, setChecked] = useState({});
+	
+	const descWithDetailsPre = 
+`Venue: ${event.venue}
+Date and Time: ${helperFunctions.getFormattedDate(new Date(event.date), 'dddd, nth MMMM YYYY', lang, languages)} at ${helperFunctions.getFormattedTime(new Date(event.date), false)}
+Duration: ${
+	(((Math.trunc(event.duration/60) === 1 && "1 hour") ||
+	(Math.trunc(event.duration/60) > 1 && Math.trunc(event.duration/60) + " hours")) || "") + 
+	((Math.trunc(event.duration/60) !== 0 && Math.round(event.duration%60) !==0 && " and ") || "") +
+	(((Math.round(event.duration%60) === 1 && "1 minute") ||
+	(Math.round(event.duration%60) > 1 && (Math.round(event.duration%60) + " minutes"))) || "")
+	}		
+${event.desc}
+`;
+	
+	const descWithDetails = encodeURIComponent(descWithDetailsPre);
+	
+	//avoid having both students and individual batches in the mailto link
+	const sendArray = Object.entries(checked).filter(el => el[1] === true).map(el => el[0]);
+	const ok = 	(checked["students"] && sendArray.length === 1) //send to all students
+						||(!checked["students"] && sendArray.length > 0) //send to individual batches
+						
+	const mailStr = `mailto:${sendArray.map(el => el + "@lists.iitk.ac.in").join()}?subject=${encodeURIComponent('[' + event.org + '] ' + event.name)}&body=${descWithDetails}`
+	const handleChange = (e) => {
+		setChecked({
+			...checked,
+			[e.target.name]: e.target.checked
+		})
+	};
+	
+	return (
+		<>
+		<Button onClick={() => {setDialog(true);}}>Approve</Button>
+		<Dialog open={dialog} onClose={() => {setDialog(false);}}>
+			<Card sx={{width: "100%", padding: "5px 20px", display:"flex", flexDirection:"column", alignItems:"center"}}>
+			<h1>Send mail to campus junta</h1>
+			<FormGroup sx={{width: "100%", display:"flex", flexDirection:"column", alignItems:"center"}}>
+				<FormControlLabel label="All Students" control={
+					<Checkbox name="students" onChange={handleChange} />
+				} />
+				<div style={{display:"grid", grid: "auto-flow / 1fr 1fr", width: "50%"}}>
+				<FormControlLabel label="UG Y20" control={
+					<Checkbox name="ug20" onChange={handleChange} />
+				} /> 
+				<FormControlLabel label="UG Y21" control={
+					<Checkbox name="ug21" onChange={handleChange} />
+				} />
+				<FormControlLabel label="UG Y22" control={
+					<Checkbox name="ug22" onChange={handleChange} />
+				} />
+				<FormControlLabel label="UG Y23" control={
+					<Checkbox name="ug23" onChange={handleChange} />
+				} />
+				</div>
+			</FormGroup>
+			<p style={{color:(!ok ? "red" : ""), width: "100%"}}>Please select more than one group. If you've selected all students, please don't select any other group.</p>
+			<p>Note: I can't attach images with mailto links so to attach the uploaded photo, you'll have to save it and attach it yourself when the email window opens. Sorry!</p>
+			<div style={{width:"100%", display:"flex", justifyContent:"space-between"}}><MuiButton component="a" href={mailStr} disabled={!ok} onClick={() => {setDialog(false);event.editEventApproval();}}>Send email</MuiButton>
+			<MuiButton onClick={() => {setDialog(false);}}>Cancel</MuiButton>
+			<MuiButton onClick={() => {setDialog(false); event.editEventApproval();}}>Approve without sending email</MuiButton></div>
+			</Card>
+		</Dialog>
+		</>
+	)
+}
+
+//delete button for "Are you sure? prompt"	
+const DenyButton = ({event}) => {
+	const [clicked, setClicked] = useState(false);
+	return (
+		!clicked ? (
+		<Button
+		onClick={() => {setClicked(true);}}>Deny</Button>
+		) : (
+			<div>
+			Are you sure? This will delete the event.
+			<Button onClick={() => {event.deleteEvent()}}>Yes</Button>
+			<Button onClick={() => {setClicked(false);}}>No</Button>
+			</div>
+		)
+	)
+}
+
+export const Event = ({event, index, withDate, canEdit, canApprove, style, lang = "en", detailDateFormat = "DD/MM/YYYY", animationSpeed = 300, languages = translations, timeFormat24 = true, userNotifToken}) => {
 	
 	const [expanded, setExpanded] = useState(false);
 	const divRef = useRef(null);
@@ -28,6 +156,7 @@ export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent,
 		if (divRef.current) {
 			let imgElement = divRef.current.querySelector("img");
 			if (imgElement != null) {
+				if (expanded) divRef.current.parentElement.style.height = `${(divRef.current.scrollHeight + 5)}px`;
 				let imgHandler = () => {
 					//v i.e. if the div isn't currently collapsed
 					if (divRef.current.parentElement.style.height != "0px")
@@ -53,119 +182,14 @@ export const Event = ({event, index, withDate, canEdit, canApprove, deleteEvent,
 	image (to add)
 	desc (added)
 	*/
-	//delete button for "Are you sure? prompt"
-	const DeleteButton = () => {
-		const [clicked, setClicked] = useState(false);
-		return (
-			!clicked ? (
-			<Button
-			onClick={() => {setClicked(true);}}>{event.status === "requested" ? "Delete" : "Cancel"}</Button>
-			) : (
-				<div>
-				Are you sure? {event.status === "approved" && "This will delete the event."}
-				<Button onClick={() => {deleteEvent(event)}}>Yes</Button>
-				<Button onClick={() => {setClicked(false);}}>No</Button>
-				</div>
-			)
-		)
-	}
-	
-	const DenyButton = () => {
-		const [clicked, setClicked] = useState(false);
-		return (
-			!clicked ? (
-			<Button
-			onClick={() => {setClicked(true);}}>Deny</Button>
-			) : (
-				<div>
-				Are you sure? This will delete the event.
-				<Button onClick={() => {deleteEvent(event)}}>Yes</Button>
-				<Button onClick={() => {setClicked(false);}}>No</Button>
-				</div>
-			)
-		)
-	}
-	
-	//this needs a component now because mailto link
-	const ApproveButton = () => {
-	
-		const [dialog, setDialog] = useState(false);
-		const [checked, setChecked] = useState({});
-		
-		const descWithDetailsPre = 
-`Venue: ${event.venue}
-Date and Time: ${helperFunctions.getFormattedDate(new Date(event.date), 'dddd, nth MMMM YYYY', lang, languages)} at ${helperFunctions.getFormattedTime(new Date(event.date), false)}
-Duration: ${
-		(((Math.trunc(event.duration/60) === 1 && "1 hour") ||
-		(Math.trunc(event.duration/60) > 1 && Math.trunc(event.duration/60) + " hours")) || "") + 
-		((Math.trunc(event.duration/60) !== 0 && Math.round(event.duration%60) !==0 && " and ") || "") +
-		(((Math.round(event.duration%60) === 1 && "1 minute") ||
-		(Math.round(event.duration%60) > 1 && (Math.round(event.duration%60) + " minutes"))) || "")
-		}		
-${event.desc}
-`;
-		
-		const descWithDetails = encodeURIComponent(descWithDetailsPre);
-		console.log(descWithDetailsPre);
-		console.log(descWithDetails);
-		
-		//avoid having both students and individual batches in the mailto link
-		const sendArray = Object.entries(checked).filter(el => el[1] === true).map(el => el[0]);
-		const ok = 	(checked["students"] && sendArray.length === 1) //send to all students
-							||(!checked["students"] && sendArray.length > 0) //send to individual batches
-							
-		const mailStr = `mailto:${sendArray.map(el => el + "@lists.iitk.ac.in").join()}?subject=${encodeURIComponent('[' + event.org + '] ' + event.name)}&body=${descWithDetails}`
-		const handleChange = (e) => {
-			setChecked({
-				...checked,
-				[e.target.name]: e.target.checked
-			})
-		};
-		
-		return (
-			<>
-			{/*<Button onClick={() => {editEventApproval(event)}}>Approve</Button>*/}
-			<Button onClick={() => {setDialog(true);}}>Approve</Button>
-			<Dialog open={dialog} onClose={() => {setDialog(false);}}>
-				<Card sx={{width: "100%", padding: "5px 20px", display:"flex", flexDirection:"column", alignItems:"center"}}>
-				<h1>Send mail to campus junta</h1>
-				<FormGroup sx={{width: "100%", display:"flex", flexDirection:"column", alignItems:"center"}}>
-					<FormControlLabel label="All Students" control={
-						<Checkbox name="students" onChange={handleChange} />
-					} />
-					<div style={{display:"grid", grid: "auto-flow / 1fr 1fr", width: "50%"}}>
-					<FormControlLabel label="UG Y20" control={
-						<Checkbox name="ug20" onChange={handleChange} />
-					} /> 
-					<FormControlLabel label="UG Y21" control={
-						<Checkbox name="ug21" onChange={handleChange} />
-					} />
-					<FormControlLabel label="UG Y22" control={
-						<Checkbox name="ug22" onChange={handleChange} />
-					} />
-					<FormControlLabel label="UG Y23" control={
-						<Checkbox name="ug23" onChange={handleChange} />
-					} />
-					</div>
-				</FormGroup>
-				<p style={{color:(!ok ? "red" : ""), width: "100%"}}>Please select more than one group. If you've selected all students, please don't select any other group.</p>
-				<p>Note: I can't attach images with mailto links so to attach the uploaded photo, you'll have to save it and attach it yourself when the email window opens. Sorry!</p>
-				<div style={{width:"100%", display:"flex", justifyContent:"space-between"}}><MuiButton component="a" href={mailStr} disabled={!ok} onClick={() => {setDialog(false);editEventApproval(event);}}>Send email</MuiButton>
-				<MuiButton onClick={() => {setDialog(false);}}>Cancel</MuiButton>
-				<MuiButton onClick={() => {setDialog(false); editEventApproval(event);}}>Approve without sending email</MuiButton></div>
-				</Card>
-			</Dialog>
-			</>
-		)
-	}
 
 	return (
 		<EventDiv key={index} role="button" style={style}>
 			{event.status === "requested" && <div>[Requested]</div>}
 			{(canEdit || canApprove) && <div style={{gap:"5px", flexWrap:"wrap"}}>
-			{canEdit && <><Button onClick={() => {editEvent(event)}}>Edit</Button><DeleteButton /></>}
-			{canApprove && event.status === "requested" && <><ApproveButton /><DenyButton /></>}
-			{canApprove && event.status === "approved" && <><Button onClick={() => {editEventApproval(event)}}>Rescind Approval</Button></>}
+			{canEdit && <><Button onClick={() => {event.editEvent()}}>Edit</Button><DeleteButton event={event}/></>}
+			{canApprove && event.status === "requested" && <><ApproveButton {...{event, lang, languages}}/><DenyButton event={event}/></>}
+			{canApprove && event.status === "approved" && <><Button onClick={() => {event.editEventApproval()}}>Rescind Approval</Button></>}
 			</div>}
 			
 			<div style={{justifyContent:"space-between"}}>
@@ -200,6 +224,7 @@ ${event.desc}
 					</svg>
 					<span>{event.venue}</span>
 			</div>
+			<Subscribe event={event}/>
 			<div
 			style={{
 				height:`${expanded ? (divRef.current.scrollHeight + 5) + "px" : "0px"}`,
@@ -210,7 +235,6 @@ ${event.desc}
 				{event.image != "" && <img className="box" ref={imgRef} style={{width:"100%"}} src={event.image} alt="Event poster"/>}
 				{event.desc}								
 				</div>
-				
 			</div>
 		</EventDiv>
 	)
@@ -256,7 +280,7 @@ function CalendarDetails({currentYear, currentMonth, currentDay, detailsOpen, se
 			} else if (detailsOpen === "month") {
 				if (helperFunctions.isValidDate(eventDate) && tempDate.getMonth() === selectedDate.getMonth() && tempDate.getYear() === selectedDate.getYear()) {
 						const eventdiv = (
-						<Event index={index} event={events[index]} withDate canEdit={!!privilege[event.orgKey]} canApprove={privilege[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={primaryColorRGB}/>
+						<Event index={index} key={index} event={events[index]} withDate canEdit={!!privilege[event.orgKey]} canApprove={privilege[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={primaryColorRGB}/>
 						);
 						eventDivs.push(eventdiv);
 				}

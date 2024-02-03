@@ -3,15 +3,16 @@
 import { clientsClaim } from 'workbox-core';
 import {precacheAndRoute} from 'workbox-precaching';
 
+const manifest = self.__WB_MANIFEST;
+
 //handles grabbing clients from previous versions
 clientsClaim();
 
 self.skipWaiting();
 
-const manifest = self.__WB_MANIFEST;
+console.log("SW activated")
+console.log("Manifest:");
+console.log(manifest);
 
 precacheAndRoute(manifest);
 
-console.log("hello world")
-console.log(manifest);
-console.log("lol");

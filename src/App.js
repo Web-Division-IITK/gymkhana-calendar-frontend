@@ -1,4 +1,4 @@
-import {useEffect, useState, useRef} from "react";
+import {useEffect, useState, useRef, createContext} from "react";
 
 // import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -10,6 +10,7 @@ import Grid from "@mui/material/Grid";
 import InputLabel from "@mui/material/InputLabel";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
+import Snackbar from "@mui/material/Snackbar";
 import TextField from "@mui/material/TextField";
 
 import DarkMode from "@mui/icons-material/DarkMode";
@@ -25,7 +26,8 @@ import styled, { ThemeProvider } from "styled-components";
 import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
 import { ref as dbref, push, child, remove, update } from "firebase/database";
 import { ref as stref, uploadBytes, getDownloadURL} from "firebase/storage";
-import { firebaseAuth, firebaseDatabase, firebaseStorage, approvedRef, requestedRef, useFirebase } from "./firebaseUtils";
+import { getToken } from "firebase/messaging";
+import { firebaseAuth, firebaseDatabase, firebaseStorage, firebaseMessaging, approvedRef, requestedRef, useFirebase } from "./firebaseUtils";
 
 import './App.css';
 
@@ -116,16 +118,57 @@ const muiDarkTheme = createTheme({
 	palette: {mode: "dark"}
 });
 
-function App() {
+function NotificationDialog({setUserNotifToken}) {
+	const [notifDialog, setNotifDialog] = useState(
+		("Notification" in window) && (Notification.permission === "default")
+	); //open notification dialog only if user hasn't accepted/refused notifications
 	
+	useEffect(() => {
+		//on mount: if notification perms given, set token
+		if (Notification.permission !== "granted") return;
+		getToken(firebaseMessaging, {vapidKey: "BAtqNCJaMFjNRNtv0qcgGF_Qg0xu1RjZMZzgeRY_akF5_wC6y5HAP5KvxHjtL8tVdvThTiWHvX617f4xw4r63Q4"}).then((currToken) => {
+			setUserNotifToken(currToken);
+// 			console.log(currToken);
+		}).catch((err) => {
+			console.error("Couldn't get notifications token");
+			console.error(err);
+		});
+	}, [])
+	
+	return (
+	<Snackbar 
+		open={notifDialog} 
+		anchorOrigin={{vertical: "top", horizontal:"center"}} 
+		message={<div style={{width:"30vw"}}>Please enable notifications to get alerts on approaching events and changes in time, venue or date.</div>} 
+		action={<>
+			<Button
+				sx={{marginRight:"10px"}}
+				onClick={() => {
+					getToken(firebaseMessaging, {vapidKey: "BAtqNCJaMFjNRNtv0qcgGF_Qg0xu1RjZMZzgeRY_akF5_wC6y5HAP5KvxHjtL8tVdvThTiWHvX617f4xw4r63Q4"}).then((currToken) => {
+						setUserNotifToken(currToken);
+						console.log(currToken);
+						setNotifDialog(false);
+					}).catch((err) => {
+						console.log("Notifications disabled");
+						setNotifDialog(false);
+						setUserNotifToken("")
+					});}}
+			>Allow/Disallow</Button>
+		</>}/>
+	)
+}
+
+export const UserContext = createContext({});
+
+function App() {
 	const [dialogOpen, setDialog] = useState(false); //events dialog open or not? can be false, "add", or "edit"
 	const [dialogDate, setDialogDate] = useState(""); //what date to display in the add events form (if adding event)
 	const [dialogEdit, setDialogEdit] = useState({}); //event object  to display in edit events form (if editing event)
 	const [userError, setUserError] = useState(false); //login form error status
 	const [eventError, setEventError] = useState(false); //add event form error status
 	const [imageError, setImageError] = useState(false); //image upload error status
+	
 	const [darkMode, setDarkMode] = useState(
-		typeof window !== "undefined" &&
 		localStorage.getItem("darkMode") === "true"
 	); //light or dark mode, get from localstorage
 	
@@ -148,7 +191,27 @@ function App() {
 
 	const {user, events, entities, privileges} = useFirebase();	
 	
-	const allEvents = [...(events.approved.map(el => ({...el, status:"approved"}))), ...(events.requested.map(el => ({...el, status:"requested"})))]
+	const [userNotifToken, setUserNotifToken] = useState("");
+	const [subscribedEventKeys, setSubscribedEventKeys] = useState([]);
+	
+	console.log("Subscribed event keys:");
+	console.log(subscribedEventKeys);
+	
+	let allEvents = ([
+		...(events.approved.map(el => ({...el, status:"approved"}))),
+		...(events.requested.map(el => ({...el, status:"requested"})))
+	]).map(event => {
+		if (subscribedEventKeys.includes(event.key)) event.subscribed = true;
+		else event.subscribed = false;
+		return event;
+	}).map(event => {
+		event.deleteEvent = (() => {deleteEvent(event)});
+		event.editEvent = (() => {editEvent(event)});
+		event.editEventApproval = (() => {editEventApproval(event)});
+		event.subscribeEvent = (() => {subscribeEvent(event)});
+		event.unsubscribeEvent = (() => {unsubscribeEvent(event)});
+		return event;
+	});
 	
 	useEffect(() => {
 		//whenever darkmode changes, change body background color and save pref to localStorage
@@ -160,7 +223,7 @@ function App() {
 		} else { //has been set to false
 			localStorage.removeItem("darkMode");
 		}
-	}, [darkMode, theme /*tell eslint to stfu */])
+	}, [darkMode, theme /* tell eslint to stfu */])
 	
 	useEffect(() => {
 		//whenever imageFile changes, set up a FileReader to
@@ -173,14 +236,44 @@ function App() {
 			});
 			fr.readAsDataURL(imageFile);
 		}
-	}, [imageFile])
+	}, [imageFile]);
 	
-	const addEvent = (date) => {
+	// useEffect(() => {
+// 		//on load: get user's notification token
+// 		getToken().then((currentToken) => {
+// 			if (currentToken) {
+// 				console.log(currentToken);
+// 				setUserNotifToken(currentToken);
+// 			} else {
+// 				throw new Error();
+// 			}
+// 		}).catch((err) => {
+// 			console.log("Notifications disabled");
+// 		});
+// 	}, [])
+
+	useEffect(() => {
+		getSubscribedEventKeys();
+	}, [userNotifToken])
+	
+	function getSubscribedEventKeys () {
+		//gets keys of events that user has subscribed to from the db
+		if (userNotifToken === "") return;
+		fetch(`${process.env.REACT_APP_NOTIF_SERVER}/getSubscribedEvents?id=${userNotifToken}`).then((resp) => {console.log(resp); return resp;})
+		.then((resp) => (resp.json()))
+		.then((keys) => {setSubscribedEventKeys(keys);console.log("Subscribed event keys:"); console.log(keys);})
+		.catch((err) => {
+			console.error(`Error attempting to fetch subscribed events for user token ${userNotifToken}`);
+			console.error(err);
+		});
+	}
+	
+	function addEvent(date) {
 		setDialogDate(`${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
 		setDialog("add");
 	}
 	
-	const deleteEvent = async (event) => {
+	async function deleteEvent(event) {
 		try {
 			await remove(
 			child(
@@ -193,10 +286,11 @@ function App() {
 		} catch (err) {
 			console.error("Error in deleting event");
 			console.error(err);
+			console.error(event);
 		}
 	}
 	
-	const editEvent = (event) => {
+	function editEvent(event) {
 		console.log("edit event")
 		let date = new Date(event.date);
 		setDialogDate(`${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
@@ -210,7 +304,7 @@ function App() {
 		setDialog("edit")
 	}
 
-	const editEventApproval = async (event) => {
+	async function editEventApproval(event) {
 		let submissionObj;
 		try {
 			submissionObj = {
@@ -242,8 +336,16 @@ function App() {
 			console.log(submissionObj)
 		}
 	}
+	
+	async function subscribeEvent(event) {
+		
+	}
+	
+	async function unsubscribeEvent(event) {
+	
+	}
 
-	const closeDialog = () => {
+	function closeDialog() {
 		setDialog(false);
 		setImagePreview(null);
 		setImageFile(null);
@@ -254,8 +356,10 @@ function App() {
 
   return (
     <>
+    	<UserContext.Provider value={{...user, userNotifToken}}>
     	<ThemeProvider theme={theme}>
     	<MuiThemeProvider theme={{[THEME_ID]: muiTheme}}>
+    	<NotificationDialog setUserNotifToken={setUserNotifToken}/>
     	<h1 style={{ textAlign:"center", color:theme.textColor}}>{"IITK Student's Gymkhana Event Calendar"}</h1>
     	<Fab variant="contained" style={{
     		position:"fixed",
@@ -411,23 +515,40 @@ function App() {
       </Dialog>
       <div style={{width: "97.5%", margin:"auto"}}>
 				<Grid spacing={2} container sx={{}}>
-					<Grid item xs={12} md={9}>
-					<Box style={{padding: "0"}}><Calendar allowAddEvent={user} events={allEvents} addEvent={addEvent} deleteEvent={deleteEvent} editEvent={editEvent} editEventApproval={editEventApproval} privilege={privileges} style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/></Box>
+					<Grid item xs={12} md={8}>
+					<Box style={{padding: "0"}}>
+						<Calendar 
+							allowAddEvent={user} 
+							events={allEvents} 
+							addEvent={addEvent} 
+							deleteEvent={deleteEvent} 
+							editEvent={editEvent} 
+							editEventApproval={editEventApproval} 
+							privilege={privileges} 
+							style={{width: "100%", margin:"auto", flexShrink: "0", padding:"0px"}}/>
+					</Box>
 					</Grid>
-					<Grid item xs={12} md={3}>
+					<Grid item xs={12} md={4}>
 						<Box style={{display:"flex", flexDirection:"column", gap:"10px",width: "100%", backgroundColor:theme.primaryColor, color:theme.secondaryColor, height:"520px"}}>
 							<h1>Upcoming Events</h1>
 							<div style={{overflow:"auto"}}>
 							{allEvents.filter(event => (event.date - Date.now() > 0) && (event.date - Date.now() < 1000*60*60*24*7)).map((event, idx) => (
-							<Event event={event} index={idx} withDate canEdit={!!privileges[event.orgKey]} canApprove={privileges[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={theme.primaryColor} style={{width:"100%", marginBottom:"10px"}} />
+							<Event event={event} index={idx} key={idx} withDate canEdit={!!privileges[event.orgKey]} canApprove={privileges[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={theme.primaryColor} style={{width:"100%", marginBottom:"10px"}} />
 							))}
 							</div>
 						</Box>
 					</Grid>
 					<Grid item xs={12}>
-					{firebaseAuth.currentUser ?
+						<Box style={{display:"flex", flexDirection:"column", gap:"10px",width: "100%", backgroundColor:theme.primaryColor, color:theme.secondaryColor, height:"300px"}}>
+							<h1>Your Subscribed Events</h1>
+							<div style={{overflow:"auto"}}>
+							</div>
+						</Box>
+					</Grid>
+					<Grid item xs={12}>
+					{user ?
 					(<div style={{width:"100%", display:"flex", justifyContent:"space-evenly"}}>
-						<div>Welcome, {firebaseAuth.currentUser?.email}.
+						<div>Welcome, {user?.email}.
 						<Button variant="contained" 
 							onClick={() => (signOut(firebaseAuth)
 							.catch((err) => {
@@ -490,6 +611,7 @@ function App() {
       </div>
   		</MuiThemeProvider>
   		</ThemeProvider>
+  		</UserContext.Provider>
     </>
   );
 }

@@ -33,6 +33,14 @@ const slideToggler = (v, lr, inOut) => keyframes `
         `}
     }
   `;
+const rotate = () => keyframes `
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+`
 //Components
 export const Calendar = styled.div `
   width: 100%;
@@ -517,4 +525,14 @@ export const Button = styled.button `
 		background-color: ${props => props.$primaryColorScheme ? props.theme.primaryColor : props.theme.secondaryColor};
 		border: solid 1px ${props => (props.$primaryColorScheme ? props.theme.secondaryColor : props.theme.primaryColor)};;
 	}
+`
+
+export const Loader = styled.div `
+	width: 20px;
+	height: 20px;
+	margin: 11px;
+	border: dotted 3px ${props => props.theme.primaryColor};
+	border-radius: 20px;
+	flex-shrink: 0;
+	animation: 5s linear 0s infinite ${rotate} ;
 `

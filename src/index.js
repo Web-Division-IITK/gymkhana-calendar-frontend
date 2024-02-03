@@ -21,6 +21,8 @@ window.addEventListener('load', async () => {
 		} else if (registration.active) {
 			console.log("Active!");
 			sw = registration.active;
+			console.log(sw)
+			sw.postMessage({t:"Hello"})
 		}
 		registration.addEventListener("statechange", (e) => {
 			console.log("State change");

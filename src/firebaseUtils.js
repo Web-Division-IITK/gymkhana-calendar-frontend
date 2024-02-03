@@ -4,6 +4,8 @@ import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
 import { getDatabase, ref as dbref, get, connectDatabaseEmulator, onValue } from "firebase/database";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
+import { getMessaging } from "firebase/messaging";
+
 
 const firebaseConfig = { //it's ok to put these here, I checked
   apiKey: "AIzaSyC8pHMcFe9QcAH-0auLWPwpaIUu3F-UQcw",
@@ -20,6 +22,7 @@ export const firebaseApp = initializeApp(firebaseConfig);
 export const firebaseAuth = getAuth(firebaseApp);
 export const firebaseDatabase = getDatabase(firebaseApp);
 export const firebaseStorage = getStorage(firebaseApp);
+export const firebaseMessaging = getMessaging(firebaseApp);
 
 connectDatabaseEmulator(firebaseDatabase, "127.0.0.1", 9000);
 connectAuthEmulator(firebaseAuth, "http://127.0.0.1:9099");
