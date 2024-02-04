@@ -24,9 +24,9 @@ export const firebaseDatabase = getDatabase(firebaseApp);
 export const firebaseStorage = getStorage(firebaseApp);
 export const firebaseMessaging = getMessaging(firebaseApp);
 
-connectDatabaseEmulator(firebaseDatabase, "127.0.0.1", 9000);
-connectAuthEmulator(firebaseAuth, "http://127.0.0.1:9099");
-connectStorageEmulator(firebaseStorage, "127.0.0.1", 9199);
+// connectDatabaseEmulator(firebaseDatabase, "127.0.0.1", 9000);
+// connectAuthEmulator(firebaseAuth, "http://127.0.0.1:9099");
+// connectStorageEmulator(firebaseStorage, "127.0.0.1", 9199);
 
 export const entitiesRef = dbref(firebaseDatabase, "/entities");
 export const approvedRef = dbref(firebaseDatabase, "/approved");
@@ -42,7 +42,8 @@ const firebaseAuthStore = {
 }
 
 onMessage(firebaseMessaging, (payload) => {
-	console.log('Message received. ', payload);
+	// console.log('Message received. ', payload);
+	new Notification(payload.title, {body: payload.body});
 });
 
 //some helper functions for firebaseEventsStore
