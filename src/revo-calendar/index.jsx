@@ -406,7 +406,8 @@ function CalendarInner({currentYear, currentMonth, currentDay, setYear, setMonth
 					}
 			}
 			const day = (
-			<DayButton $today={highlight} $current={index === currentDay && detailsOpen === "day"} $numApprovedEvents={numApprovedEvents} $numRequestedEvents={numRequestedEvents} onClick={() => {
+			<DayButton $today={highlight} $current={index === currentDay && detailsOpen === "day"} $numApprovedEvents={numApprovedEvents} $numRequestedEvents={numRequestedEvents} onClick={(e) => {
+					e.stopPropagation();
 					setDay(index);
 					if (openDetailsOnDateSelection && !detailsOpen) {
 							animatingDetail = 1;
@@ -567,7 +568,7 @@ const RevoCalendar = ({
     }
     
     // In order to make it responsible, panels will float on top of calendar on low res.
-    const floatingPanels = calendarWidth <= 320 + sidebarWidth || calendarWidth <= 320 + detailWidth;
+    const floatingPanels = calendarWidth <= 320 + sidebarWidth || (detailWidthFraction ? calendarWidth <= 730 : calendarWidth <= 320 + detailWidth);
     // If, with the current setting, the sidebar or detail panels won't fit the screen, make them smaller.
     sidebarWidth = calendarWidth < sidebarWidth + 50 ? calendarWidth - 50 : sidebarWidth;
     detailWidth = calendarWidth < detailWidth + 50 ? calendarWidth - 50 : detailWidth;

@@ -550,7 +550,7 @@ function App() {
 						<Box style={{display:"flex", flexDirection:"column", gap:"10px",width: "100%", backgroundColor:theme.primaryColor, color:theme.secondaryColor, height:"300px"}}>
 							<h1>Your Subscribed Events</h1>
 							<div style={{overflow:"auto"}}>
-							{allEvents.filter(event => event.subscribed).map((event, idx) => (
+							{allEvents.filter(event => event.subscribed && event.start > Date.now()).map((event, idx) => (
 							<Event event={event} index={idx} key={idx} withDate canEdit={!!privileges[event.orgKey]} canApprove={privileges[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={theme.primaryColor} style={{width:"100%", marginBottom:"10px"}} />
 							))}
 							</div>

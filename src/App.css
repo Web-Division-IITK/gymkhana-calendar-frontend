@@ -1,6 +1,7 @@
 * {
 	box-sizing: border-box;
-	transition-property: background, color;
+	transition-property: background-color, color;
+	will-change: background-color, color;
 	transition-duration: 0.2s;
 	transition-timing-function: linear;
 }

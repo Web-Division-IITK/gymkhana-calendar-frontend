@@ -16,6 +16,7 @@ const firebaseConfig = {
   appId: "1:74846642585:web:9abd6791254c250624b308",
   databaseURL:"https://gymkhanacalendar-default-rtdb.asia-southeast1.firebasedatabase.app/",
 };
+const messaging = getMessaging(initializeApp(firebaseConfig));
 
 //handles grabbing clients from previous versions
 clientsClaim();
@@ -27,6 +28,4 @@ console.log("Manifest:");
 console.log(manifest);
 
 precacheAndRoute(manifest);
-
-const messaging = getMessaging(initializeApp(firebaseConfig));
 

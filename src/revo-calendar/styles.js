@@ -299,7 +299,6 @@ export const Event = styled.div `
   padding: 10px 15px;
   border-radius: 20px;
   background: ${(props) => props.theme.secondaryColor};
-  // transition: box-shadow ${(props) => props.theme.animationSpeed} ease;
 	color: ${props => props.theme.primaryColor};
   & > p {
     font-size: 1.1rem;

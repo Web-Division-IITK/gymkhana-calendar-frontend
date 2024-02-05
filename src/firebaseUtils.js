@@ -42,8 +42,10 @@ const firebaseAuthStore = {
 }
 
 onMessage(firebaseMessaging, (payload) => {
-	// console.log('Message received. ', payload);
-	new Notification(payload.title, {body: payload.body});
+	console.log('Message received. ', payload);
+	navigator.serviceWorker.ready.then((registration) => {
+		registration.showNotification(payload.notification.title, {body: payload.notification.body});
+	});
 });
 
 //some helper functions for firebaseEventsStore

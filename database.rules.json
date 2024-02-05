@@ -11,7 +11,9 @@
 				(!data.exists() && auth.token.roles[newData.child('org').val()] === 'approve') ||
 				(data.exists() && 
 				auth.token.roles[data.child('org').val()] !== null && 
-				auth.token.roles[newData.child('org').val()] !== null)",
+					(!newData.exists() || 
+					auth.token.roles[newData.child('org').val()] !== null)
+				)",
 				".indexOn": ["date"],
 				"name": {
 					".validate": "newData.isString() && newData.val() != ''"
@@ -46,7 +48,7 @@
 				(!data.exists() && auth.token.roles[newData.child('org').val()] !== null) ||
 				(data.exists() && 
 				auth.token.roles[data.child('org').val()] !== null && 
-				auth.token.roles[newData.child('org').val()] !== null)",
+				(!newData.exists() || auth.token.roles[newData.child('org').val()] !== null))",
 				".indexOn": ["date"],
 				"name": {
 					".validate": "newData.isString() && newData.val() != ''"
