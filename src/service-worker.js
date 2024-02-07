@@ -16,7 +16,13 @@ const firebaseConfig = {
   appId: "1:74846642585:web:9abd6791254c250624b308",
   databaseURL:"https://gymkhanacalendar-default-rtdb.asia-southeast1.firebasedatabase.app/",
 };
-const messaging = getMessaging(initializeApp(firebaseConfig));
+try {
+	const messaging = getMessaging(initializeApp(firebaseConfig));
+} catch (err) {
+	//Browser doesn't support firebase messaging, usually because iOS Safari, so log a message to console and send a popup
+	console.log("Browser doesn't support Firebase Messaging");
+	// (new BroadCastChannel("error")).postMessage("messaging_error");
+}
 
 //handles grabbing clients from previous versions
 clientsClaim();

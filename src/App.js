@@ -127,13 +127,14 @@ function NotificationDialog({setUserNotifToken}) {
 		//on mount: if notification perms given, set token
 		if (Notification.permission !== "granted") return;
 		(async () => {
-			getToken(firebaseMessaging, {
+			getToken(await firebaseMessaging, {
 				serviceWorkerRegistration: await navigator.serviceWorker.ready,
 				vapidKey: "BAtqNCJaMFjNRNtv0qcgGF_Qg0xu1RjZMZzgeRY_akF5_wC6y5HAP5KvxHjtL8tVdvThTiWHvX617f4xw4r63Q4"}).then((currToken) => {
 				setUserNotifToken(currToken);
 	// 			console.log(currToken);
 			}).catch((err) => {
 				console.error("Couldn't get notifications token");
+				setUserNotifToken("");
 				console.error(err);
 			});
 		})();
@@ -141,14 +142,15 @@ function NotificationDialog({setUserNotifToken}) {
 	
 	return (
 	<Snackbar 
+		sx={{width: {sm:"50vw"}}}
 		open={notifDialog} 
 		anchorOrigin={{vertical: "top", horizontal:"center"}} 
-		message={<div style={{width:"30vw"}}>Please enable notifications to get alerts on approaching events and changes in time, venue or date.</div>} 
+		message={<div style={{width:"100%"}}>Please enable notifications to get alerts on approaching events and changes in time, venue or date.</div>} 
 		action={<>
 			<Button
 				sx={{marginRight:"10px"}}
 				onClick={async () => {
-					getToken(firebaseMessaging, {
+					getToken(await firebaseMessaging, {
 						serviceWorkerRegistration: await navigator.serviceWorker.ready,
 						vapidKey: "BAtqNCJaMFjNRNtv0qcgGF_Qg0xu1RjZMZzgeRY_akF5_wC6y5HAP5KvxHjtL8tVdvThTiWHvX617f4xw4r63Q4"}).then((currToken) => {
 						setUserNotifToken(currToken);
@@ -164,15 +166,34 @@ function NotificationDialog({setUserNotifToken}) {
 	)
 }
 
+function UnsupportedBrowserDialog() {
+	const [isOpen, setOpen] = useState(true);
+	return (
+	<Snackbar
+		sx={{width: {sm:"50vw"}}}
+		open={isOpen}
+		onClose={() => {setOpen(false)}}
+		autoHideDuration={10000}
+		anchorOrigin={{vertical:"top", horizontal:"center"}}
+		message={<div style={{width:"100%"}}>
+		Seems like your browser doesn't support push notifications. If you are using an iPhone, try adding this website to your home screen. Tap the Share icon at the bottom of your screen (next to the Reading List/Book icon) and then tap the 'Add to Home Screen' option in the list.
+		</div>}
+		action={<Button onClick={() => {setOpen(false)}}>Close</Button>}
+	/>
+	)
+}
+
 export const UserContext = createContext({});
 
 function App() {
 	const [dialogOpen, setDialog] = useState(false); //events dialog open or not? can be false, "add", or "edit"
 	const [dialogDate, setDialogDate] = useState(""); //what date to display in the add events form (if adding event)
 	const [dialogEdit, setDialogEdit] = useState({}); //event object  to display in edit events form (if editing event)
+	
 	const [userError, setUserError] = useState(false); //login form error status
 	const [eventError, setEventError] = useState(false); //add event form error status
 	const [imageError, setImageError] = useState(false); //image upload error status
+	const [fbmsgError, setFbmsgError] = useState(false); //if firebase messaging doesn't work, show the 'your browser sux' alert
 	
 	const [darkMode, setDarkMode] = useState(
 		localStorage.getItem("darkMode") === "true"
@@ -191,15 +212,18 @@ function App() {
 	const [imagePreview, setImagePreview] = useState(null);
 	//reading files is async so an effect handles reading the file and putting
 	//it into imagePreview for the img tag to display
+	const [imageLoading, setImageLoading] = useState(false);
+	//loading dialog for when image is uploaded but not previewed yet
 
-	const loginFormRef = useRef(null); //ref to login form
-	const addEventFormRef = useRef(null); //ref to add events form 
+	const loginFormRef = useRef(null); //ref to login form at bottom of page
+	const addEventFormRef = useRef(null); //ref to add/edit events form that opens when 'Add Event' or 'Edit' is clicked
 
 	const {user, events, entities, privileges} = useFirebase();	
 	
-	const [userNotifToken, setUserNotifToken] = useState("");
-	const [subscribedEventKeys, setSubscribedEventKeys] = useState([]);
+	const [userNotifToken, setUserNotifToken] = useState(""); //firebase notification token
+	const [subscribedEventKeys, setSubscribedEventKeys] = useState([]); //the keys (event.key) of the event that the token is subscribed to
 	
+	//put all the events into one array and set them up for use by other components
 	let allEvents = ([
 		...(events.approved.map(el => ({...el, status:"approved"}))),
 		...(events.requested.map(el => ({...el, status:"requested"})))
@@ -208,6 +232,7 @@ function App() {
 		else event.subscribed = false;
 		return event;
 	}).map(event => {
+		//these are here to prevent needing prop drilling or a context for all these functions
 		event.deleteEvent = (() => {deleteEvent(event)});
 		event.editEvent = (() => {editEvent(event)});
 		event.editEventApproval = (() => {editEventApproval(event)});
@@ -215,6 +240,16 @@ function App() {
 		event.unsubscribeEvent = (() => {unsubscribeEvent(event)});
 		return event;
 	});
+	
+	useEffect(() => {
+		//on load: check if firebaseMessaging is null i.e. if messaging is disabled, if so show popup
+		(async () => {console.log("firebaseMessaging", firebaseMessaging);
+		if (await firebaseMessaging === null) {
+			console.log("Messaging not supported");
+			setFbmsgError(true);
+			setUserNotifToken("");
+		} else console.log("Messaging supported!")})();
+	}, []);
 	
 	useEffect(() => {
 		//whenever darkmode changes, change body background color and save pref to localStorage
@@ -267,6 +302,7 @@ function App() {
 		.then((keys) => {setSubscribedEventKeys(keys);console.log("Subscribed event keys:"); console.log(keys);})
 		.catch((err) => {
 			console.error(`Error attempting to fetch subscribed events for user token ${userNotifToken}`);
+			setUserNotifToken("");
 			console.error(err);
 		});
 	}
@@ -371,6 +407,7 @@ function App() {
 		setImagePreview(null);
 		setImageFile(null);
 		setImageURL("");
+		setImageLoading(false);
 		setDialogDate("");
 		setDialogEdit({});
 	}
@@ -381,6 +418,7 @@ function App() {
     	<ThemeProvider theme={theme}>
     	<MuiThemeProvider theme={{[THEME_ID]: muiTheme}}>
     	<NotificationDialog setUserNotifToken={setUserNotifToken}/>
+    	{fbmsgError && <UnsupportedBrowserDialog />}
     	<h1 style={{ textAlign:"center", color:theme.textColor}}>{"IITK Student's Gymkhana Event Calendar"}</h1>
     	<Fab variant="contained" style={{
     		position:"fixed",
@@ -482,10 +520,12 @@ function App() {
 									user: user.email
 								}});
 								console.log("Starting upload...");
+								setImageLoading(true);
 								await uploadBytes(imageRef, imageFile);
 								console.log("Successfully uploaded file, getting URL...");
 								let url = await getDownloadURL(imageRef);
 								setImageError(false);
+								setImageLoading(false);
 								setImageURL(url);
 								console.log("Success!")
 								
@@ -499,8 +539,11 @@ function App() {
       			{imageFile && (
       			<div>Image size: {imageFile.size < 1024 ? `${imageFile.size} bytes` : imageFile.size < 1024*1024 ? `${(imageFile.size/1024).toFixed(2)} KB` : `${(imageFile.size/(1024*1024)).toFixed(2)} MB`}</div>
       			)}
+      			{imageLoading && (
+      			<div>Uploading your image...</div>
+      			)}
       			{imageURL !== "" && (
-      			<div>Successfully uploaded image. If you wish to upload another image, simply select another one (click "Browse...") and then click Upload again. Image URL is {imageURL} and will be attached automatically.</div>
+      			<div style={{width: "90%"}}>Successfully uploaded image. If you wish to upload another image, simply select another one (click "Browse...") and then click Upload again. Image URL is {imageURL} and will be attached automatically.</div>
       			)}
       			{imageError && (
       			<div style={{color:"red"}}>

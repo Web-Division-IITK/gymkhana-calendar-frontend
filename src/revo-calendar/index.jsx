@@ -31,17 +31,21 @@ const Subscribe = ({event}) => {
 					try {
 						await event.subscribeEvent();
 						setSubState(true);
+						console.log("Successfully subscribed");
 					} catch (err) {
+						console.error("Error in subscribing");
 						console.error(err);
 						setSubState(false);
 					}
 				} else {
-					console.log(`Unsubscribing...`);
+					console.log(`Unsubscribing from ${event.key} with user token ${userNotifToken}...`);
 					setLoading(true);
 					try {
 						await event.unsubscribeEvent();
 						setSubState(false);
+						console.log("Successfully unsubscribed");
 					} catch (err) {
+						console.error("Error in unsubscribing");
 						console.error(err);
 						setSubState(true);
 					}

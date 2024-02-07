@@ -297,13 +297,14 @@ export const Inner = styled.div `
 export const Event = styled.div `
   width: 90%;
   padding: 10px 15px;
+  border: solid 1px ${props => props.theme.primaryColor};
   border-radius: 20px;
-  background: ${(props) => props.theme.secondaryColor};
-	color: ${props => props.theme.primaryColor};
+  background: ${(props) => !props.$reverseTheme ? props.theme.secondaryColor : props.theme.primaryColor};
+	color: ${(props) => !props.$reverseTheme ? props.theme.primaryColor : props.theme.secondaryColor};
   & > p {
     font-size: 1.1rem;
     text-align: left;
-    color: ${(props) => props.theme.primaryColor};
+    color: ${(props) => !props.$reverseTheme ? props.theme.secondaryColor : props.theme.primaryColor};
     margin-bottom: 0.7rem;
     word-break: break-word;
   }
@@ -320,9 +321,6 @@ export const Event = styled.div `
         font-weight: lighter;
       }
     }
-  }
-  &:hover {
-    box-shadow: 0 0 10px #0004;
   }
 `;
 export const Details = styled.div `
