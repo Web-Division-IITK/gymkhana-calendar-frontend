@@ -161,6 +161,7 @@ const firebaseEventsStore = {
 			// console.log("onAuthStateChanged callback");
 			if (firebaseAuth.currentUser) {
 				//clear the polling
+				if (this.interval !== 0) clearInterval(this.interval);
 				//signed in -> set up callback
 				let approvedUnsub = onValue(approvedRef, (snapshot) => {
 // 					console.log("New approved events data");
