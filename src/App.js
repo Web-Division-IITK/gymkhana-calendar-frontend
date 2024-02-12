@@ -125,6 +125,7 @@ function NotificationDialog({setUserNotifToken}) {
 	
 	useEffect(() => {
 		//on mount: if notification perms given, set token
+		if (!("Notification" in window)) return;
 		if (Notification.permission !== "granted") return;
 		(async () => {
 			getToken(await firebaseMessaging, {

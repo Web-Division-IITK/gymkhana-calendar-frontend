@@ -46,13 +46,6 @@ const firebaseAuthStore = {
 	}
 }
 
-onMessage(firebaseMessaging, (payload) => {
-	console.log('Message received. ', payload);
-	navigator.serviceWorker.ready.then((registration) => {
-		registration.showNotification(payload.notification.title, {body: payload.notification.body});
-	});
-});
-
 //some helper functions for firebaseEventsStore
 function unpackEvents(snapshot, status, entities) {
 // 	console.log("unpackEvents: entities:");
@@ -95,18 +88,12 @@ const firebaseEventsStore = {
 			...obj
 		}
 	},
-	subscribe(callback) {
-// 		console.log("subscribe called");
-		//point of this: when not signed in, subscribing just fetches events and entities
-		//once and then stops
-		if (!firebaseAuth.currentUser) {
-			(async () => {
-// 			console.log("Not signed in");
-// 			console.log("Fetching events data...");
-			let prev = Number(localStorage.getItem("updateTime")); //null if not present
-			// console.log(`Prev is ${prev}`);
-			if (Date.now() - Number(prev) > 5*60*1000) { //min update time: 5 min
-				// console.log("Getting events data from db...");
+	interval: 0,
+	pollTime: 5, //in minutes
+	pollEvents: (async function () {
+		// console.log("Poll events called");
+		let prev = Number(localStorage.getItem("updateTime")); //null if not present
+			if (Date.now() - Number(prev) > this.pollTime*60*1000) { 
 				try {
 					let entities_temp = (await get(entitiesRef)).val();
 					console.log(entities_temp);
@@ -144,11 +131,27 @@ const firebaseEventsStore = {
 					console.error(err);
 				}
 			}
-			//either way, once everything is done, execute the callback so that react fetches new data
-// 			console.log("callback called");
-			callback();
-			//no cleanup necessary to unsubscribe here
-			})(); //anonymous async function executed immediately
+			//either way, once everything is done, execute the callback (stored in this.subscribers) so that react fetches new data
+			this.subscriber();
+	}),
+	subscriber: () => {
+		console.log("Empty subscriber called");
+	},
+	unsubscribe() {
+		console.log("unsubscribe called")
+		clearInterval(this.interval);
+		this.subscriber = () => {
+			console.log("Empty subscriber called");
+		}
+		this.eventsUnsub();
+		this.authUnsub();
+	},
+	subscribe(callback) {
+		//fetch events and entities every 5 minutes
+		if (!firebaseAuth.currentUser) {
+			this.subscriber = callback;
+			this.pollEvents();
+			this.interval = setInterval(this.pollEvents.bind(this), (this.pollTime*60)*1000 + 1);
 		}
 		//when signed in: sets up a callback for events and entities
 		//on auth change: if signing out: clean up ^ call back
@@ -157,6 +160,7 @@ const firebaseEventsStore = {
 			//we can store the callback in eventsUnsub so shouldn't be a problem...?
 			// console.log("onAuthStateChanged callback");
 			if (firebaseAuth.currentUser) {
+				//clear the polling
 				//signed in -> set up callback
 				let approvedUnsub = onValue(approvedRef, (snapshot) => {
 // 					console.log("New approved events data");
@@ -199,25 +203,50 @@ const firebaseEventsStore = {
 				})
 				this.eventsUnsub(); //unsubscribe from everything
 				this.eventsUnsub = () => {};
+				//set up polling interval again, no need to immediately poll because events were already on instant delivery before
+				this.interval = setInterval(this.pollEvents.bind(this), (this.pollTime*60)*1000 + 1);
 			}
 		});
-		return () => {
-			this.eventsUnsub();
-			this.authUnsub();
-		}
+		return () => (this.unsubscribe.bind(this));
 	},
 	getSnapshot() {
-// 		console.log("Events requested");
-// 		console.log("approved");
-// 		this.returnValue.events.approved.forEach(el => {console.log(el)})
-// 		console.log("requested");
-// 		this.returnValue.events.requested.forEach(el => {console.log(el)})
 		return this.returnValue; 
 	}
 }
-			
+
+firebaseEventsStore.pollEvents(); //pollEvents once on startup
+// firebaseEventsStore.interval = setInterval(firebaseEventsStore.pollEvents.bind(firebaseEventsStore), (firebaseEventsStore.pollTime*60)*1000 + 1);
+//no need for ^ because subscribing already does this
+
 const firebaseEventsSubscribe = firebaseEventsStore.subscribe.bind(firebaseEventsStore);
 const firebaseEventsSnapshot = firebaseEventsStore.getSnapshot.bind(firebaseEventsStore);
+
+(async () => {
+	onMessage(await firebaseMessaging, (payload) => {
+		console.log('Message received. ', payload);
+		//poll events once as well if not logged in
+		if (!firebaseAuth.currentUser) {
+			//remove updateTime in localStorage so that pollEvents actually works
+			console.log("polling events");
+			localStorage.removeItem("updateTime");
+			firebaseEventsStore.pollEvents();
+		}
+		navigator.serviceWorker.ready.then((registration) => {
+			registration.showNotification(payload.notification.title, {body: payload.notification.body});
+		});
+	});
+})();
+
+//add a message handler for when service worker sends event update message
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener("message", (e) => {
+	console.log("message from service worker");
+	console.log(e)
+	if (e.data === "get new events") {
+		console.log("polling events");
+		localStorage.removeItem("updateTime");
+		firebaseEventsStore.pollEvents();
+	}
+});
 
 export function useFirebase() {//hook to abstract all firebase details
 	const user = useSyncExternalStore(firebaseAuthStore.subscribe, firebaseAuthStore.getSnapshot);

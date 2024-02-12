@@ -3,7 +3,7 @@
 import { clientsClaim } from 'workbox-core';
 import {precacheAndRoute} from 'workbox-precaching';
 import {initializeApp} from 'firebase/app';
-import {getMessaging} from 'firebase/messaging/sw';
+import {getMessaging, onBackgroundMessage} from 'firebase/messaging/sw';
 
 const manifest = self.__WB_MANIFEST;
 
@@ -18,6 +18,63 @@ const firebaseConfig = {
 };
 try {
 	const messaging = getMessaging(initializeApp(firebaseConfig));
+	onBackgroundMessage(messaging, payload => {
+		self.registration.showNotification(payload.notification.title, {body: payload.notification.body});
+		//same as below, fetch events again but don't focus the client this time
+		self.clients
+			.matchAll({type:"window"})
+			.then((clientList) => {
+				if (clientList.length == 0) {
+					console.log("no opened windows");
+// 					return self.clients.openWindow(`${self.location.origin}`).then(windowClient => {
+// 						windowClient.postMessage("get new events");
+// 						return windowClient.focus();
+// 					});
+				} else {
+					for (const client of clientList) {
+						console.log("sending message to window");
+						client.postMessage("get new events");
+					}
+// 					console.log("focusing first window");
+// 					return clientList[0].focus();
+				}
+			})
+			.catch(err => {
+				console.error("Error when trying to open notification and send message to pages");
+				console.error(err);
+			})
+	});
+	self.addEventListener("notificationclick", (e) => {
+		console.log("notification clicked");
+		e.notification.close();
+		//if the notification is clicked, send a message to clients to fetch new events
+		//if no client, make one
+		//focus the client
+		e.waitUntil(
+			self.clients
+			.matchAll({type:"window"})
+			.then((clientList) => {
+				if (clientList.length == 0) {
+					console.log("no opened windows");
+					return self.clients.openWindow(`${self.location.origin}`).then(windowClient => {
+						windowClient.postMessage("get new events");
+						return windowClient.focus();
+					});
+				} else {
+// 					for (const client of clientList) {
+// 						console.log("sending message to window");
+// 						client.postMessage("get new events");
+// 					}
+					console.log("focusing first window");
+					return clientList[0].focus();
+				}
+			})
+			.catch(err => {
+				console.error("Error when trying to open notification and send message to pages");
+				console.error(err);
+			})
+		)
+	});
 } catch (err) {
 	//Browser doesn't support firebase messaging, usually because iOS Safari, so log a message to console and send a popup
 	console.log("Browser doesn't support Firebase Messaging");

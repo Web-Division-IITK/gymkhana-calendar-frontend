@@ -66,7 +66,10 @@ const DeleteButton = ({event, deleteEvent}) => {
 		) : (
 			<div>
 			Are you sure? {event.status === "approved" && "This will delete the event."}
-			<Button onClick={() => {event.deleteEvent()}}>Yes</Button>
+			<Button onClick={() => {
+				console.log("Deleting event");
+				console.log(event);
+				event.deleteEvent()}}>Yes</Button>
 			<Button onClick={() => {setClicked(false);}}>No</Button>
 			</div>
 		)
