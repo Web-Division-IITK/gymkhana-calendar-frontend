@@ -486,7 +486,7 @@ function App() {
       			<InputLabel>Organisation</InputLabel>
 						<Select label="Organisation" name="org" defaultValue={dialogEdit.orgKey}>
 							<MenuItem value={undefined} disabled />
-							{Object.keys(privileges).map(el => <MenuItem value={el} key={el}>{entities[el]}</MenuItem>)}
+							{privileges ? Object.keys(privileges).map(el => <MenuItem value={el} key={el}>{entities[el]}</MenuItem>) : ""}
 						</Select>
 					</FormControl>
 					<div style={{width:"100%", display:"flex", gap:"10px"}}>
@@ -599,68 +599,6 @@ function App() {
 							))}
 							</div>
 						</Box>
-					</Grid>
-					<Grid item xs={12}>
-					{user ?
-					(<div style={{width:"100%", display:"flex", justifyContent:"space-evenly"}}>
-						<div>Welcome, {user?.email}.
-						<Button variant="contained" 
-							onClick={() => (signOut(firebaseAuth)
-							.catch((err) => {
-								console.error("Problem while signing out");
-								console.error(err)
-							}))
-						}>Sign out</Button>?
-						</div>
-					</div>) :
-					(<h3
-					>
-						<form name="login" ref={loginFormRef} style={{
-							display:"flex",
-							flexDirection:"column", 
-							alignItems:"center", 
-							gap:"10px", 
-							margin:"auto", 
-							width:"fit-content"}}
-						onSubmit={async (e) => {
-							try {
-								e.preventDefault();
-								let formData = new FormData(loginFormRef.current)
-// 								console.log(formData.get("email"))
-// 								console.log(formData.get("password"))
-// 								console.log(firebaseAuth.currentUser)
-								await signInWithEmailAndPassword(firebaseAuth, formData.get("email"), formData.get("password"));
-								setUserError(false); 
-								// console.log(firebaseAuth.currentUser);
-							} catch (err) {
-								console.error(err)
-								setUserError(true);
-							}
-						}}>
-						<div style={{display:"flex", gap:"10px"}}>
-						<TextField label="Enter email" name="email" type="email" error={userError} helperText={userError ? "Error, please check console for more details" : " "} onChange={() => setUserError(false)}/>
-						<TextField label="Enter password" name="password" type="password" error={userError} helperText=" " onChange={() => setUserError(false)} />
-						</div>
-						<div style={{display:"flex", gap:"10px", alignItems:"center"}}>
-						<Button variant="contained" type="submit" >Log in</Button>to add events
-						</div>
-						<Button variant="contained" type="button" onClick={async () => {
-							try {
-								let formData = new FormData(loginFormRef.current)
-								await sendPasswordResetEmail(firebaseAuth, formData.get("email"))
-								alert("A password reset email has been sent. Please follow the instructions in the email to reset your password.")
-							} catch (err) {
-								console.error("Error in sending password reset email")
-								console.error(err);
-								setUserError(true);
-							}
-						}}>Forgot password?</Button>
-						</form>
-					</h3>)
-					}</Grid>
-					<Grid item xs={12}>
-					<div>Made by the SnT Web Team 23-24:</div>
-					<div>Deven Gangwani and Divyansh Mittal</div>
 					</Grid>
 				</Grid>
       </div>

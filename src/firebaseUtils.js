@@ -276,7 +276,7 @@ export function useFirebase() {//hook to abstract all firebase details
 				}
 				setPrivileges(temp);
 			}
-			else setPrivileges(claims.roles);
+			else if (claims.roles !== undefined) setPrivileges(claims.roles);
 		} else {
 			setPrivileges({});
 		}
