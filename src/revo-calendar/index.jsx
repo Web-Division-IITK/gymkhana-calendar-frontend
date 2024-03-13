@@ -4,7 +4,7 @@ import translations from "./helpers/translations";
 import { CHEVRON_ICON_SVG, CLOCK_ICON_SVG, DETAILS_ICON_SVG, SIDEBAR_ICON_SVG, PEOPLE_ICON_SVG, VENUE_ICON_SVG } from "./helpers/consts";
 import { ThemeProvider, useTheme } from "styled-components";
 import { Calendar, CloseDetail, CloseSidebar, ChevronButton, Day, DayButton, Details, Event as EventDiv, Inner, MonthButton, Sidebar, MonthHeader, Button, Loader} from "./styles";
-import {Dialog, Card, Checkbox, FormGroup, FormControlLabel, Button as MuiButton} from "@mui/material";
+import {Dialog, Card, Checkbox, FormGroup, FormControlLabel, Button as MuiButton, TextField} from "@mui/material";
 import { UserContext } from "../App.js";
 
 // -1 = animate closing | 0 = nothing | 1 = animate opening.
@@ -80,6 +80,9 @@ const DeleteButton = ({event, deleteEvent}) => {
 const ApproveButton = ({event, lang, languages}) => {
 	const [dialog, setDialog] = useState(false);
 	const [checked, setChecked] = useState({});
+	const [varMail, setVarMail] = useState("");
+	const [varMailSelected, toggleVarMail] = useState(false);
+	
 	
 	const descWithDetailsPre = 
 `Venue: ${event.venue}
@@ -97,11 +100,16 @@ ${event.desc}
 	const descWithDetails = encodeURIComponent(descWithDetailsPre);
 	
 	//avoid having both students and individual batches in the mailto link
-	const sendArray = Object.entries(checked).filter(el => el[1] === true).map(el => el[0]);
-	const ok = 	(checked["students"] && sendArray.length === 1) //send to all students
+	const sendArray = Object.entries(checked)
+	.filter(el => el[1] === true)
+	.map(el => el[0])
+	.map(el => el + "@lists.iitk.ac.in");
+	if (varMailSelected && varMail !== "") sendArray.push(varMail);
+	const ok = 	(checked["students"] && sendArray.length === 1 && varMailSelected === false) //send to all students
 						||(!checked["students"] && sendArray.length > 0) //send to individual batches
+						||(!checked["students"] && varMailSelected && varMail !== ""); //send to "Specify recipients"
 						
-	const mailStr = `mailto:${sendArray.map(el => el + "@lists.iitk.ac.in").join()}?subject=${encodeURIComponent('[' + event.org + '] ' + event.name)}&body=${descWithDetails}`
+	const mailStr = `mailto:${sendArray.join()}?subject=${encodeURIComponent('[' + event.org + '] ' + event.name)}&body=${descWithDetails}`
 	const handleChange = (e) => {
 		setChecked({
 			...checked,
@@ -119,7 +127,7 @@ ${event.desc}
 				<FormControlLabel label="All Students" control={
 					<Checkbox name="students" onChange={handleChange} />
 				} />
-				<div style={{display:"grid", grid: "auto-flow / 1fr 1fr", width: "50%"}}>
+				<div style={{display:"grid", grid: "auto-flow / 1fr 1fr", width: "80%"}}>
 				<FormControlLabel label="UG Y20" control={
 					<Checkbox name="ug20" onChange={handleChange} />
 				} /> 
@@ -132,9 +140,25 @@ ${event.desc}
 				<FormControlLabel label="UG Y23" control={
 					<Checkbox name="ug23" onChange={handleChange} />
 				} />
+				<FormControlLabel label="PG" control={
+					<Checkbox name="pg" onChange={handleChange} />
+				} />
+				<div>
+					<div>
+					<FormControlLabel label="Specify Emails (comma-separated, no spaces)" control={
+						<Checkbox name={varMail} onChange={(e) => {
+							toggleVarMail(e.target.checked);
+						}} />
+					
+					} />
+					</div>
+					<TextField value={varMail} onChange={(e) => {
+							setVarMail(e.target.value);
+					}} />
+				</div>
 				</div>
 			</FormGroup>
-			<p style={{color:(!ok ? "red" : ""), width: "100%"}}>Please select more than one group. If you've selected all students, please don't select any other group.</p>
+			<p style={{color:(!ok ? "red" : ""), width: "100%"}}>Please select more than one group. If you've selected all students, please don't select any other group. If you've selected "Specify Emails", please enter the emails, comma-separated, in the text box.</p>
 			<p>Note: I can't attach images with mailto links so to attach the uploaded photo, you'll have to save it and attach it yourself when the email window opens. Sorry!</p>
 			<div style={{width:"100%", display:"flex", justifyContent:"space-between"}}><MuiButton component="a" href={mailStr} disabled={!ok} onClick={() => {setDialog(false);event.editEventApproval();}}>Send email</MuiButton>
 			<MuiButton onClick={() => {setDialog(false);}}>Cancel</MuiButton>
