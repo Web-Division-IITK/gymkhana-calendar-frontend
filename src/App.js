@@ -151,15 +151,14 @@ function NotificationDialog({setUserNotifToken}) {
 			<Button
 				sx={{marginRight:"10px"}}
 				onClick={async () => {
+				    setNotifDialog(false);
 					getToken(await firebaseMessaging, {
 						serviceWorkerRegistration: await navigator.serviceWorker.ready,
 						vapidKey: "BAtqNCJaMFjNRNtv0qcgGF_Qg0xu1RjZMZzgeRY_akF5_wC6y5HAP5KvxHjtL8tVdvThTiWHvX617f4xw4r63Q4"}).then((currToken) => {
 						setUserNotifToken(currToken);
 						console.log(currToken);
-						setNotifDialog(false);
 					}).catch((err) => {
 						console.log("Notifications disabled");
-						setNotifDialog(false);
 						setUserNotifToken("")
 					});}}
 			>Allow/Disallow</Button>

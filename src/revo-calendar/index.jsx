@@ -121,7 +121,7 @@ ${event.desc}
 		<>
 		<Button onClick={() => {setDialog(true);}}>Approve</Button>
 		<Dialog open={dialog} onClose={() => {setDialog(false);}}>
-			<Card sx={{width: "100%", padding: "5px 20px", display:"flex", flexDirection:"column", alignItems:"center"}}>
+			<Card sx={{width: "100%", padding: "5px 20px", display:"flex", flexDirection:"column", alignItems:"center", overflow:"auto"}}>
 			<h1>Send mail to campus junta</h1>
 			<FormGroup sx={{width: "100%", display:"flex", flexDirection:"column", alignItems:"center"}}>
 				<FormControlLabel label="All Students" control={
