@@ -1,70 +1,21 @@
-# Getting Started with Create React App
+# Gymkhana Calendar
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A Firebase application for a campus-wide events calendar. Notifications enabled when notifications.sntiitk.com is online.
 
-## Available Scripts
+## Dev Set-up
+ - Run `firebase emulators:start` to start the Firebase Emulator Suite (don't test on the production )
+     - Note: hosting emulation is also enabled, disable if unneeded
+ - Run `npm run start` to start the React dev server (will use the local emulator tools rather than the production ones)
+     - Note: you can override this by specifying `REACT_APP_USE_PROD=true` (or anything except `false`) in .env/on the command line
+     - Note: service worker probably won't work (fix this!)
+ - Note: for now, to test the service worker, build the front-end with the environment variable `REACT_APP_PROD_USE_EMU=true` (or anything except `false`) in .env/on the command line (`GENERATE_SOURCEMAP=true` is also recommended)
+     - Warning: sometimes rebuilding will not apply until you close the window/tab and then open it again (service worker issues). You can also manually update the service worker by unregistering it (in DevTools)
+ - In the emulator, add an admin user by adding a user with the custom claims `{"admin":true}`
+ - Use `sampledb.json` for the local realtime database (make sure to upload it to "gymkhanacalendar-default-rtdb")
 
-In the project directory, you can run:
+## Deployment
+ - Run `npm run build` to build the front-end files *(make sure that `REACT_APP_PROD_USE_EMU` is false!)*
+ - Run `firebase deploy` to update any DB/Storage rules and deploy the built front-end files to Firebase Hosting
 
-### `npm start`
-
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Notes
+ - Google Calendar URL reference: https://github.com/InteractionDesignFoundation/add-event-to-calendar-docs/blob/main/services/google.md

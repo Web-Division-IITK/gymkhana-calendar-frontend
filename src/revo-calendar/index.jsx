@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
+import DOMPurify from "dompurify";
+import Showdown from "showdown";
 import helperFunctions from "./helpers/functions";
 import translations from "./helpers/translations";
 import { CHEVRON_ICON_SVG, CLOCK_ICON_SVG, DETAILS_ICON_SVG, SIDEBAR_ICON_SVG, PEOPLE_ICON_SVG, VENUE_ICON_SVG } from "./helpers/consts";
@@ -11,7 +13,24 @@ import { UserContext } from "../App.js";
 let animatingSidebar = 0;
 let animatingDetail = 0;
 
+let markdownConverter = new Showdown.Converter()
+
 //assumes events is sorted, please sort the prop in parent component!!!
+
+/*
+	event properties:
+	name
+	date (unix timestamp -> includes start time as well)
+	venue
+	org (organisation, e.g. club, or council, or cell, etc.)
+	duration
+	x extra {
+		icon
+		text
+	} x (removed)
+	image (to add)
+	desc (added)
+*/
 
 const Subscribe = ({event}) => {
 	const [subState, setSubState] = useState(event.subscribed);
@@ -186,6 +205,19 @@ const DenyButton = ({event}) => {
 	)
 }
 
+const AddToCalendar = ({event}) => (
+    <a href={
+    `https://calendar.google.com/calendar/r/eventedit?text=${
+        event.name + " by " + event.org
+    }&dates=${
+        helperFunctions.getFormattedDate(new Date(event.date), "YYYYMMDDT", "en", translations) + helperFunctions.getFormattedTime(new Date(event.date), true).replace(":", "") + "00"
+    }/${
+        helperFunctions.getFormattedDate(new Date(event.date + event.duration*60*1000), "YYYYMMDDT", "en", translations) + helperFunctions.getFormattedTime(new Date(event.date + event.duration*60*1000), true).replace(":", "") + "00"
+    }&details=${encodeURIComponent(event.desc + "\n\nIncluded image: " + event.image)}&location=${event.venue + ", IITK"}&sprop=website:calendar.sntiitk.com`} target="_blank">
+    <Button>Add to Google Calendar</Button>
+    </a>
+);
+
 export const Event = ({event, index, withDate, canEdit, canApprove, style, lang = "en", detailDateFormat = "DD/MM/YYYY", animationSpeed = 300, languages = translations, timeFormat24 = true, userNotifToken}) => {
 	
 	const [expanded, setExpanded] = useState(false);
@@ -233,9 +265,9 @@ export const Event = ({event, index, withDate, canEdit, canApprove, style, lang 
 		<EventDiv key={index} role="button" style={style}>
 			{event.status === "requested" && <div>[Requested]</div>}
 			{(canEdit || canApprove) && <div style={{gap:"5px", flexWrap:"wrap"}}>
-			{canEdit && <><Button onClick={() => {event.editEvent()}}>Edit</Button><DeleteButton event={event}/></>}
-			{canApprove && event.status === "requested" && <><ApproveButton {...{event, lang, languages}}/><DenyButton event={event}/></>}
-			{canApprove && event.status === "approved" && <><Button onClick={() => {event.editEventApproval()}}>Rescind Approval</Button></>}
+                {canEdit && <><Button onClick={() => {event.editEvent()}}>Edit</Button><DeleteButton event={event}/></>}
+                {canApprove && event.status === "requested" && <><ApproveButton {...{event, lang, languages}}/><DenyButton event={event}/></>}
+                {canApprove && event.status === "approved" && <><Button onClick={() => {event.editEventApproval()}}>Rescind Approval</Button></>}
 			</div>}
 			
 			<div style={{justifyContent:"space-between"}}>
@@ -270,6 +302,7 @@ export const Event = ({event, index, withDate, canEdit, canApprove, style, lang 
 					</svg>
 					<span>{event.venue}</span>
 			</div>
+			<AddToCalendar event={event} />
 			<Subscribe event={event}/>
 			<div
 			style={{
@@ -277,9 +310,13 @@ export const Event = ({event, index, withDate, canEdit, canApprove, style, lang 
 				transition: `height ${animationSpeed}ms ease`,
 				overflow:"hidden",
 			}}>
-				<div style={{display:"block"}} ref={divRef}>
-				{event.image != "" && <img className="box" ref={imgRef} style={{width:"100%"}} src={event.image} alt="Event poster"/>}
-				{event.desc}								
+				<div style={{display:"block", paddingTop:"0.5em", width:"100%"}} ref={divRef}>
+                    {DOMPurify.isSupported
+                    ? <div style={{display:"block"}} dangerouslySetInnerHTML={{__html:DOMPurify.sanitize(markdownConverter.makeHtml(event.desc))}} />
+                    : <div>DOMPurify does not support this browser, so we cannot display the event description. Please update your browser.</div>}
+                    {event.image != "" && <>
+                        <img className="box" ref={imgRef} style={{width:"100%", marginTop:"1em"}} src={event.image} alt="Event poster"/>
+                    </>}
 				</div>
 			</div>
 		</EventDiv>

@@ -414,9 +414,9 @@ function App() {
 
   return (
     <>
-    	<UserContext.Provider value={{...user, userNotifToken}}>
-    	<ThemeProvider theme={theme}>
-    	<MuiThemeProvider theme={{[THEME_ID]: muiTheme}}>
+    <UserContext.Provider value={{...user, userNotifToken}}>
+    <ThemeProvider theme={theme}>
+    <MuiThemeProvider theme={{[THEME_ID]: muiTheme}}>
     	<NotificationDialog setUserNotifToken={setUserNotifToken}/>
     	{fbmsgError && <UnsupportedBrowserDialog />}
     	<h1 style={{ textAlign:"center", color:theme.textColor}}>{"IITK Student's Gymkhana Event Calendar"}</h1>
@@ -662,9 +662,9 @@ function App() {
 					<div>Deven Gangwani and Divyansh Mittal</div>
 				</Grid>
       		</div>
-  		</MuiThemeProvider>
-  		</ThemeProvider>
-  		</UserContext.Provider>
+    </MuiThemeProvider>
+    </ThemeProvider>
+    </UserContext.Provider>
     </>
   );
 }

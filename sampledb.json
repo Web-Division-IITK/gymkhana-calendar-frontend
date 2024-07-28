@@ -1,0 +1,38 @@
+{
+  "approved": {
+    "-NuyN3ylXuux_Yoin2LU": {
+      "date": 1712593800000,
+      "desc": "This is what a test event will look like.\n\nMultiline description and all.",
+      "duration": 119,
+      "image": "https://firebasestorage.googleapis.com/v0/b/gymkhanacalendar.appspot.com/o/MSwxNDIsMTkwLDk0LDYwLDE1MA%3D%3D?alt=media&token=029d71dd-a703-41cf-a81b-d419d7127a60",
+      "name": "Test Event",
+      "org": "amc",
+      "venue": "Test Location"
+    },
+    "-NvMYcnXvyBzuNlzGooa": {
+      "date": 1713184200000,
+      "desc": "Join us for a talk on RAG (retrieval augmented generation) by Mr. Jayprasad Hegde, NPCI held in collaboration with Pathway and CoPS IITBHU.",
+      "duration": 120,
+      "image": "",
+      "name": "End-to-End RAG",
+      "org": "pclub",
+      "venue": "Online"
+    },
+    "-O2VlyMrSB7nt2Jj7hDh": {
+      "date": 1721821200000,
+      "desc": "This is a demonstration event. Look at the pretty picture!",
+      "duration": 180,
+      "image": "https://firebasestorage.googleapis.com/v0/b/gymkhanacalendar.appspot.com/o/MSwxNDQsMjI0LDE5OSwxODMsMTA0?alt=media&token=b8d433ae-3df4-4433-ba87-94a204ad71ea",
+      "name": "SnT Council Orientation",
+      "org": "pclub",
+      "venue": "Main Auditorium"
+    }
+  },
+  "entities": {
+    "amc": "Aeromodelling Club",
+    "ar": "Team Aerial Robotics",
+    "bcs": "Brain and Cognitive Society",
+    "pclub": "Programming Club",
+    "rclub": "Robotics Club"
+  }
+}

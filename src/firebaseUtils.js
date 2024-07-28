@@ -29,9 +29,13 @@ export const firebaseMessaging = (async () => {
 	else return null;
 })();
 
-// connectDatabaseEmulator(firebaseDatabase, "127.0.0.1", 9000);
-// connectAuthEmulator(firebaseAuth, "http://127.0.0.1:9099");
-// connectStorageEmulator(firebaseStorage, "127.0.0.1", 9199);
+if ((process.env.NODE_ENV !== "production" && process.env.REACT_APP_USE_PROD === "false")
+    || (process.env.REACT_APP_BUILD_USE_EMU !== "false")) {
+    console.log("Using local emulators...");
+    connectDatabaseEmulator(firebaseDatabase, "127.0.0.1", 9000);
+    connectAuthEmulator(firebaseAuth, "http://127.0.0.1:9099");
+    connectStorageEmulator(firebaseStorage, "127.0.0.1", 9199);
+}
 
 export const entitiesRef = dbref(firebaseDatabase, "/entities");
 export const approvedRef = dbref(firebaseDatabase, "/approved");
