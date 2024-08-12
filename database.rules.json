@@ -1,11 +1,12 @@
 {
-  "rules": {
-  	"entities": {
-  		".read": "true",
+	"rules": {
+		"entities": {
+			".read": "true",
 			".write":"false"
 		},
-    "approved": {
-    	".read":"true",
+		"approved": {
+			".read":"true",
+			".indexOn": ["date"],
 			"$event": {
 				".write": "auth.token.admin === true ||
 				(!data.exists() && auth.token.roles[newData.child('org').val()] === 'approve') ||
@@ -14,7 +15,6 @@
 					(!newData.exists() || 
 					auth.token.roles[newData.child('org').val()] !== null)
 				)",
-				".indexOn": ["date"],
 				"name": {
 					".validate": "newData.isString() && newData.val() != ''"
 				},
@@ -40,9 +40,9 @@
 					".validate": "false"
 				}
 			}
-    },
-    "requested": {
-    	".read": "auth !== null",
+		},
+		"requested": {
+			".read": "auth !== null",
 			"$eventid": {
 				".write": "auth.token.admin === true ||
 				(!data.exists() && auth.token.roles[newData.child('org').val()] !== null) ||
@@ -75,10 +75,10 @@
 					".validate": "false"
 				}
 			}
-    },
-    "notifications": {
+		},
+		"notifications": {
 			".read": "false",
 			".write": "false"
-    }
-  }
+		}
+	}
 }
