@@ -511,17 +511,24 @@ function App() {
 											display: 'flex',
 											flexDirection: 'column',
 											alignItems: 'flex-start',
+											gap:'30px'
 										}}
 									>
-										<button
-											style={{ marginBottom: '10px' }}
-											onClick={() => { setDarkMode(!darkMode); }}
-										>
-											{darkMode ? 'Light Mode' : 'Dark Mode'}
-										</button>
-										<button onClick={handleButtonClick}>
-											{isLoggedIn ? 'Sign Out' : 'Login'}
-										</button>
+										<Fab
+									variant="contained"
+									onClick={() => { setDarkMode(!darkMode); }}
+									style={{ marginRight: '10px' }}
+									className="icon"
+								>
+									{darkMode ? <LightMode /> : <DarkMode />}
+								</Fab>
+								<Fab
+									className="icon"
+									variant="contained"
+									onClick={handleButtonClick}
+								>
+									{isLoggedIn ? 'Sign Out' : 'Login'}
+								</Fab>
 									</div>
 								</div>
 							)}

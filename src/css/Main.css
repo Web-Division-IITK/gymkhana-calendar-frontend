@@ -21,7 +21,7 @@
 /* Media query for small screens */
 @media (max-width: 600px) {
     .navbar h1 {
-        font-size: 22px; /* Reduce font size on smaller screens */
+        font-size: 19px; /* Reduce font size on smaller screens */
     }
 
     .hamburger-menu {
