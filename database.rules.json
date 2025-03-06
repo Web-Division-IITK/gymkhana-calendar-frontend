@@ -2,19 +2,51 @@
 	"rules": {
 		"entities": {
 			".read": "true",
-			".write":"false"
+			"$council": {
+			  ".write":"auth.token.admin === true 
+			  || root.child('users').child(auth.uid).child('roles').child($council).val() === 'approve'",
+			  "$name": {
+			    ".validate": "newData.isString() && newData.val() != ''"
+			  }
+			}
+			
+		},
+		"users": {
+		  ".read": "true",
+		  "$userid": {
+		    ".write": "auth.token.admin === true
+		    || (auth.uid !== $userid
+		      && ((!data.exists()
+		          && root.child('users').child(auth.uid).child('roles').child(newData.child('council').val()).val() === 'approve')
+		        || (!newData.exists()
+		          && root.child('users').child(auth.uid).child('roles').child(data.child('council').val()).val() === 'approve')
+		        || (data.exists()
+		          && root.child('users').child(auth.uid).child('roles').child(newData.child('council').val()).val() === 'approve'
+		          && root.child('users').child(auth.uid).child('roles').child(data.child('council').val()).val() === 'approve')))",
+		    "council": {
+		      ".validate": "newData.isString() && newData.val() != ''"
+		    },
+		    "roles": {
+		      "$role": {
+		        ".validate": "newData.val() === 'approve' || newData.val() === true"
+		      }
+		    },
+		    "$other": {
+		      ".validate": "false",
+		    }
+		  }
 		},
 		"approved": {
 			".read":"true",
 			".indexOn": ["date"],
 			"$event": {
-				".write": "auth.token.admin === true ||
-				(!data.exists() && auth.token.roles[newData.child('org').val()] === 'approve') ||
-				(data.exists() && 
-				auth.token.roles[data.child('org').val()] !== null && 
-					(!newData.exists() || 
-					auth.token.roles[newData.child('org').val()] !== null)
-				)",
+				".write": "auth.token.admin === true
+				|| (!data.exists() 
+				  && root.child('users').child(auth.uid).child('roles').child(newData.parent().child('org').val()).val() === 'approve')
+				|| (data.exists()
+				  && root.child('users').child(auth.uid).child('roles').child(data.parent().child('org').val()).val() !== null
+				  && (!newData.exists() 
+				    || root.child('users').child(auth.uid).child('roles').child(newData.parent().child('org').val()).val() !== null))",
 				"name": {
 					".validate": "newData.isString() && newData.val() != ''"
 				},
@@ -25,7 +57,10 @@
 					".validate": "newData.isString() && newData.val() != ''"
 				},
 				"date": {
-					".validate": "(newData.isNumber() && newData.val() > (now - (now % 86400000) + 330*60*1000)) || auth.token.roles[newData.parent().child('org').val()] === 'approve' || auth.token.admin === true"
+					".validate": "(newData.isNumber() 
+					  && newData.val() > (now - (now % 86400000) + 330*60*1000)) 
+					|| root.child('users').child(auth.uid).child('roles').child(newData.parent().child('org').val()).val() === 'approve'
+					|| auth.token.admin === true"
 				},
 				"duration": {
 					".validate": "newData.isNumber() && newData.val() <= 1440 - ((newData.parent().child('date').val() + 330*60*1000) % (1000*60*60*24))/60000"
@@ -44,11 +79,13 @@
 		"requested": {
 			".read": "auth !== null",
 			"$eventid": {
-				".write": "auth.token.admin === true ||
-				(!data.exists() && auth.token.roles[newData.child('org').val()] !== null) ||
-				(data.exists() && 
-				auth.token.roles[data.child('org').val()] !== null && 
-				(!newData.exists() || auth.token.roles[newData.child('org').val()] !== null))",
+				".write": "auth.token.admin === true
+				|| (!data.exists() 
+				  && root.child('users').child(auth.uid).child('roles').child(data.parent().child('org').val()).val() !== null) 
+				|| (data.exists()
+				  && root.child('users').child(auth.uid).child('roles').child(data.parent().child('org').val()).val() !== null 
+				  && (!newData.exists() 
+				    || root.child('users').child(auth.uid).child('roles').child(newData.parent().child('org').val()).val() !== null))",
 				".indexOn": ["date"],
 				"name": {
 					".validate": "newData.isString() && newData.val() != ''"
@@ -60,7 +97,9 @@
 					".validate": "newData.isString() && newData.val() != ''"
 				},
 				"date": {
-					".validate": "(newData.isNumber() && newData.val() > (now - (now % 86400000) + 330*60*1000)) || auth.token.roles[newData.parent().child('org').val()] === 'approve' || auth.token.admin === true"
+					".validate": "(newData.isNumber() && newData.val() > (now - (now % 86400000) + 330*60*1000))
+					|| root.child('users').child(auth.uid).child('roles').child(newData.parent().child('org').val()).val() === 'approve'
+					|| auth.token.admin === true"
 				},
 				"duration": {
 					".validate": "newData.isNumber() && newData.val() <= 1440 - ((newData.parent().child('date').val() + 330*60*1000) % (1000*60*60*24))/60000"

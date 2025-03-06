@@ -29,10 +29,12 @@
     }
   },
   "entities": {
-    "amc": "Aeromodelling Club",
-    "ar": "Team Aerial Robotics",
-    "bcs": "Brain and Cognitive Society",
-    "pclub": "Programming Club",
-    "rclub": "Robotics Club"
+    "snt": {
+        "amc": "Aeromodelling Club",
+        "ar": "Team Aerial Robotics",
+        "bcs": "Brain and Cognitive Society",
+        "pclub": "Programming Club",
+        "rclub": "Robotics Club"
+    }
   }
 }

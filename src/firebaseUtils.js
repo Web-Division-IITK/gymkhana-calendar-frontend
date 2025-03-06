@@ -37,9 +37,10 @@ if ((process.env.NODE_ENV !== "production" && process.env.REACT_APP_USE_PROD ===
     connectStorageEmulator(firebaseStorage, "127.0.0.1", 9199);
 }
 
-export const entitiesRef = dbref(firebaseDatabase, "/entities");
-export const approvedRef = dbref(firebaseDatabase, "/approved");
-export const requestedRef = dbref(firebaseDatabase, "/requested");
+export const entitiesRef    = dbref(firebaseDatabase, "/entities");
+export const approvedRef    = dbref(firebaseDatabase, "/approved");
+export const requestedRef   = dbref(firebaseDatabase, "/requested");
+export const usersRef       = dbref(firebaseDatabase, "/users");
 
 const firebaseAuthStore = {
 	subscribe(callback) {
@@ -76,13 +77,20 @@ function unpackEvents(snapshot, status, entities) {
 	return eventsArr;
 }
 
+function unpackEntities(entities_temp) {
+    return Object.fromEntries(Object.keys(entities_temp).flatMap(
+	    council => Object.keys(entities_temp[council]).map(
+			club => [club, entities_temp[council][club]])));
+}
+
 const firebaseEventsStore = {
 	returnValue: {
 		events: {
 			approved: [],
 			requested: []
 		},
-		entities: {}}, //needed for "caching" and because I don't feel like separating this into another store
+		entities: {}, //needed for "caching" and because I don't feel like separating this into another store
+		validUsers: {}}, //use this to check whether to poll or to subscribe
 	//(react needs to get the same object back if there is no update)
 	eventsUnsub: () => {}, //initialize as 'empty' function
 	authUnsub: null,
@@ -100,17 +108,21 @@ const firebaseEventsStore = {
 			if (Date.now() - Number(prev) > this.pollTime*60*1000) { 
 				try {
 					let entities_temp = (await get(entitiesRef)).val();
+					let users_temp = (await get(usersRef)).val();
 					console.log(entities_temp);
 					let snapshot = await get(approvedRef);
 					this.setReturnValue({
-						entities: entities_temp,
+					    //turn two-level council -> orgs list into flat orgs list
+						entities: unpackEntities(entities_temp),
 						events: {
 							approved: unpackEvents(snapshot, "approved", entities_temp),
 							requested: this.returnValue.events.requested,
-						}
+						},
+						validUsers: users_temp == null ? {} : users_temp,
 					})
 					localStorage.setItem("events",JSON.stringify(this.returnValue.events.approved));
 					localStorage.setItem("entities",JSON.stringify(this.returnValue.entities));
+					localStorage.setItem("validUsers", JSON.stringify(this.returnValue.validUsers));
 					console.log("Fetched events and entities!");
 				} catch (err) {
 					console.error("Error in fetching events data");
@@ -123,12 +135,15 @@ const firebaseEventsStore = {
 					if (events_approved_temp == null) throw new Error("No events stored!");
 					let entities_temp = localStorage.getItem("entities");
 					if (entities_temp == null) throw new Error("No entities stored!");
+					let users_temp = localStorage.getItem("validUsers");
+					if (users_temp == null) throw new Error("No validUsers stored!");
 					this.setReturnValue({
 						entities: JSON.parse(entities_temp),
 						events: {
 							approved: JSON.parse(events_approved_temp),
 							requested: this.returnValue.events.requested,
-						}
+						},
+						validUsers: JSON.parse(users_temp),
 					})
 				} catch (err) {
 					console.error("Error in getting events/entities data locally");
@@ -152,18 +167,21 @@ const firebaseEventsStore = {
 	},
 	subscribe(callback) {
 		//fetch events and entities every 5 minutes
-		if (!firebaseAuth.currentUser) {
+		if (!(firebaseAuth.currentUser && this.returnValue.validUsers[firebaseAuth.currentUser.uid])) {
 			this.subscriber = callback;
 			this.pollEvents();
 			this.interval = setInterval(this.pollEvents.bind(this), (this.pollTime*60)*1000 + 1);
 		}
 		//when signed in: sets up a callback for events and entities
 		//on auth change: if signing out: clean up ^ call back
-		this.authUnsub = onAuthStateChanged(firebaseAuth, () => {
+		this.authUnsub = onAuthStateChanged(firebaseAuth, async () => {
 			//plan: we use onAuthState to set up the callback for events and entities
 			//we can store the callback in eventsUnsub so shouldn't be a problem...?
 			// console.log("onAuthStateChanged callback");
-			if (firebaseAuth.currentUser) {
+			//check if admin
+			let admin = (await firebaseAuth.currentUser.getIdTokenResult()).claims.admin;
+			
+			if (firebaseAuth.currentUser && (this.returnValue.validUsers[firebaseAuth.currentUser.uid] || admin)) {
 				//clear the polling
 				if (this.interval !== 0) clearInterval(this.interval);
 				//signed in -> set up callback
@@ -198,6 +216,8 @@ const firebaseEventsStore = {
 					approvedUnsub();
 					requestedUnsub();
 				}
+			} else if (!this.returnValue.validUsers[firebaseAuth.currentUser.uid]) {
+			    //do nothing
 			} else { //i.e. when signing out
 				// console.log("signout unsub");
 				this.setReturnValue({
@@ -209,6 +229,7 @@ const firebaseEventsStore = {
 				this.eventsUnsub(); //unsubscribe from everything
 				this.eventsUnsub = () => {};
 				//set up polling interval again, no need to immediately poll because events were already on instant delivery before
+				if (this.interval !== 0) clearInterval(this.interval);
 				this.interval = setInterval(this.pollEvents.bind(this), (this.pollTime*60)*1000 + 1);
 			}
 		});
@@ -255,7 +276,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener("mess
 
 export function useFirebase() {//hook to abstract all firebase details
 	const user = useSyncExternalStore(firebaseAuthStore.subscribe, firebaseAuthStore.getSnapshot);
-	const {events, entities} = useSyncExternalStore(
+	const {events, entities, validUsers} = useSyncExternalStore(
 		firebaseEventsSubscribe, 
 		firebaseEventsSnapshot
 	);
@@ -279,17 +300,20 @@ export function useFirebase() {//hook to abstract all firebase details
 					temp[entity] = "approve";
 				}
 				setPrivileges(temp);
+			} else if (claims.roles !== undefined) {
+			    setPrivileges(claims.roles);
+			} else if (validUsers[user.uid] !== undefined) {
+			    setPrivileges(validUsers[user.uid].roles);
 			}
-			else if (claims.roles !== undefined) setPrivileges(claims.roles);
 		} else {
 			setPrivileges({});
 		}
 		})();
-	},[user, entities]); //user may load before entities so re-run whenever entities is filled
+	},[user, validUsers, entities]); //user may load before entities so re-run whenever entities is filled
 	return {
 		user,
 		events,
 		entities,
-		privileges
+		privileges,
 	}
 }

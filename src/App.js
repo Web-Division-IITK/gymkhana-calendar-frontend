@@ -28,7 +28,6 @@ import { ref as dbref, push, child, remove, update } from "firebase/database";
 import { ref as stref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getToken } from "firebase/messaging";
 import { firebaseAuth, firebaseDatabase, firebaseStorage, firebaseMessaging, approvedRef, requestedRef, useFirebase } from "./firebaseUtils";
-import './css/Main.css'
 import './App.css';
 import logo from './img/iitk_logo1.png'
 import logo_dark from './img/iitk_logo.png'
@@ -43,6 +42,7 @@ function intToBase64(num) {
 
 const lightThemeControls = {
 	primaryColor: "#333",
+	borderColor: "#333",
 	secondaryColor: "#fff",
 	todayColor: "#49d728",
 	textColor: "#000",
@@ -53,6 +53,7 @@ const lightThemeControls = {
 
 const darkThemeControls = {
 	primaryColor: "#ddd",
+	borderColor: "#ddd",
 	secondaryColor: "#333",
 	todayColor: "#49d728",
 	textColor: "#fff",
@@ -65,6 +66,7 @@ const lightTheme = {
 	primaryColor: helperFunctions.getRGBColor(lightThemeControls.primaryColor),
 	primaryColor50: helperFunctions.getRGBAColorWithAlpha(helperFunctions.getRGBColor(lightThemeControls.primaryColor), 0.5),
 	secondaryColor: helperFunctions.getRGBColor(lightThemeControls.secondaryColor),
+	borderColor: helperFunctions.getRGBColor(lightThemeControls.borderColor),
 	todayColor: helperFunctions.getRGBColor(lightThemeControls.todayColor),
 	textColor: helperFunctions.getRGBColor(lightThemeControls.textColor),
 	indicatorColor: helperFunctions.getRGBColor(lightThemeControls.indicatorColor),
@@ -76,6 +78,7 @@ const darkTheme = {
 	primaryColor: helperFunctions.getRGBColor(darkThemeControls.primaryColor),
 	primaryColor50: helperFunctions.getRGBAColorWithAlpha(helperFunctions.getRGBColor(darkThemeControls.primaryColor), 0.5),
 	secondaryColor: helperFunctions.getRGBColor(darkThemeControls.secondaryColor),
+	borderColor: helperFunctions.getRGBColor(darkThemeControls.borderColor),
 	todayColor: helperFunctions.getRGBColor(darkThemeControls.todayColor),
 	textColor: helperFunctions.getRGBColor(darkThemeControls.textColor),
 	indicatorColor: helperFunctions.getRGBColor(darkThemeControls.indicatorColor),
@@ -87,19 +90,19 @@ const darkTheme = {
 // const calendarTheme = darkMode ? darkThemeControls : lightThemeControls;
 
 const Box = styled.div`
-	border: solid 1px ${props => props.theme.primaryColor};
+	border: solid 1px ${props => props.theme.borderColor};
 	border-radius: 5px;
 	padding: 10px;
 `
 
 const StyledForm = styled.form`
-	border: solid 1px ${props => props.theme.primaryColor};
+	border: solid 1px ${props => props.theme.borderColor};
 	border-radius: 5px;
 	padding: 10px;
 `
 
 const StyledImg = styled.img`
-	border: solid 1px ${props => props.theme.primaryColor};
+	border: solid 1px ${props => props.theme.borderColor};
 	border-radius: 5px;
 	padding: 10px;
 `
@@ -119,6 +122,13 @@ const muiDarkTheme = createTheme({
 	...muiConfig,
 	palette: { mode: "dark" }
 });
+
+const isEmpty = (obj) => {
+  for (const prop in obj)
+    if (Object.hasOwn(obj, prop))
+      return false;
+  return true;
+}
 
 function NotificationDialog({ setUserNotifToken }) {
 	const [notifDialog, setNotifDialog] = useState(
@@ -190,25 +200,15 @@ function UnsupportedBrowserDialog() {
 
 export const UserContext = createContext({});
 
-function App() {
-	const [dialogOpen, setDialog] = useState(false); //events dialog open or not? can be false, "add", or "edit"
-	const [dialogDate, setDialogDate] = useState(""); //what date to display in the add events form (if adding event)
-	const [dialogEdit, setDialogEdit] = useState({}); //event object  to display in edit events form (if editing event)
+function AddEditEventsDialog({
+  dialogOpen,
+  dialogEdit,
+  closeDialog
+}) {
 
-	const [userError, setUserError] = useState(false); //login form error status
-	const [eventError, setEventError] = useState(false); //add event form error status
-	const [imageError, setImageError] = useState(false); //image upload error status
-	const [fbmsgError, setFbmsgError] = useState(false); //if firebase messaging doesn't work, show the 'your browser sux' alert
-
-	const [darkMode, setDarkMode] = useState(
-		localStorage.getItem("darkMode") === "true"
-	); //light or dark mode, get from localstorage
-
-	const theme = darkMode ? darkTheme : lightTheme;
-	const calendarTheme = darkMode ? darkThemeControls : lightThemeControls;
-	const muiTheme = darkMode ? muiDarkTheme : muiLightTheme;
-
-	const [imageURL, setImageURL] = useState("");
+  const addEventFormRef = useRef(null); //ref to add/edit events form that opens when 'Add Event' or 'Edit' is clicked
+  
+  const [imageURL, setImageURL] = useState("");
 	//for add event form submission, using state because it's easier to keep
 	//track of than an individual ref to one particular input
 	const [imageFile, setImageFile] = useState(null);
@@ -219,9 +219,464 @@ function App() {
 	//it into imagePreview for the img tag to display
 	const [imageLoading, setImageLoading] = useState(false);
 	//loading dialog for when image is uploaded but not previewed yet
+	
+	
+	const [eventError, setEventError] = useState(false); //add event form error status
+	const [imageError, setImageError] = useState(false); //image upload error status
+  
+  const { user, events, entities, privileges } = useFirebase();
+  
+  useEffect(() => {
+		//whenever imageFile changes, set up a FileReader to
+		//read the data into imagePreview so that the <img> in the
+		//upload picture form can display it
+		if (imageFile != null) {
+			const fr = new FileReader();
+			fr.addEventListener("load", () => {
+				setImagePreview(fr.result);
+			});
+			fr.readAsDataURL(imageFile);
+		}
+	}, [imageFile]);
+  
+  useEffect(() => {
+    //when the dialog is just opened, check if there's a URL in dialogEdit to put in imageURL
+    if (dialogOpen !== false && dialogEdit.hasOwnProperty("image")) {
+      setImageURL(dialogEdit.image);
+    }
+  }, [dialogOpen]);
+  
+  let date = new Date(dialogEdit.date);
+	let dialogDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+	
+	const clearDialogAndClose = () => {
+		setImagePreview(null);
+		setImageFile(null);
+		setImageURL("");
+		setImageLoading(false);
+		closeDialog();
+	}
+	
+  return (
+  <Dialog
+    open={!!dialogOpen}
+    onClose={clearDialogAndClose}
+    fullWidth
+  >
+    <Card name="add-event" ref={addEventFormRef} component={StyledForm} id="myform" sx={{ width: "100%", display: "flex", flexDirection: "column", gap: "10px", overflow: "auto" }} onSubmit={async (e) => {
+      e.preventDefault();
+      let submissionObj = {}
+      try {
+        let formData = new FormData(addEventFormRef.current);
+        console.log(formData);
+        //check if start time before end time, otherwise call the user a dumbfuck and stawp
+        let [startH, startM] = formData.get("start").split(":");
+        let [endH, endM] = formData.get("end").split(":");
+        if (Number(startH) >= Number(endH) && Number(startM) >= Number(endM)) {
+          setEventError(true);
+          throw new Error("Event ends before it starts");
+        }
+        //check if start time is before right now, if so again fail
+        if ((new Date(formData.get("date") + " " + formData.get("start"))).getTime() < Date.now()) {
+          setEventError(true);
+          throw new Error("Event start time before current time");
+        }
 
+        submissionObj = {
+          name: formData.get("name"),
+          date: (new Date(formData.get("date") + " " + formData.get("start"))).getTime(),
+          desc: formData.get("desc"),
+          duration: (Number(endH) - Number(startH)) * 60 + (Number(endM) - Number(startM)),
+          image: imageURL,
+          venue: formData.get("venue"),
+          org: formData.get("org")
+        }
+
+        if (dialogOpen === "add") {
+          //push event!!!						
+          await push(requestedRef, submissionObj)
+          console.log("Pushed event successfully");
+        } else if (dialogOpen === "edit") {
+          await update(child(
+            (dialogEdit.status === "requested" ? requestedRef : approvedRef),
+            dialogEdit.key
+          ), submissionObj);
+        }
+        console.log("Success")
+        clearDialogAndClose();
+      } catch (err) {
+        //something fucked up
+        setEventError(true);
+        console.error("Error in adding event");
+        console.error(err);
+        console.error("Event:")
+        console.log(submissionObj);
+        console.log(dialogEdit);
+      }
+    }}>
+      <h1>{`${dialogOpen === "add" ? "Add" : dialogOpen === "edit" ? "Edit" : "Error"}`} an Event</h1>
+      <FormControl fullWidth>
+        <InputLabel>Organisation</InputLabel>
+        <Select label="Organisation" name="org" defaultValue={dialogEdit.orgKey}>
+          <MenuItem value={undefined} disabled />
+          {privileges ? Object.keys(privileges).map(el => <MenuItem value={el} key={el}>{entities[el]}</MenuItem>) : ""}
+        </Select>
+      </FormControl>
+      <div style={{ width: "100%", display: "flex", gap: "10px" }}>
+        <TextField label="Name" name="name" fullWidth required 
+          defaultValue={dialogEdit.name}
+        />
+        <TextField label="Venue" name="venue" fullWidth required
+          defaultValue={dialogEdit.venue}
+        />
+      </div>
+      <TextField label="Description (will be mailed as well)" name="desc" multiline fullWidth required
+        defaultValue={dialogEdit.desc}
+      />
+      <div style={{ display: "flex", width: "100%", gap: "10px" }}>
+        <TextField helperText="Date" name="date" type="date" sx={{ flexGrow: "3" }} required 
+          defaultValue={dialogDate}
+        />
+        <TextField helperText="Start Time" name="start" type="time" sx={{ flexGrow: "2" }} required 
+          defaultValue={dialogEdit.start}
+        />
+        <TextField helperText="End Time" name="end" type="time" sx={{ flexGrow: "2" }} required 
+          defaultValue={dialogEdit.end}
+        />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", width: "100%" }}>
+        <h3>Upload image (max 5 MB, PNG, JPG, GIF only)</h3>
+        <div style={{ display: "flex", width: "100%", gap: "10px", alignItems: "center", justifyContent: "space-between" }}>
+          <input type="file" accept=".png,.jpg,.jpeg,.gif" name="file" form="dummy"
+            onChange={(e) => {
+              setImageFile(e.target.files[0]);
+              setImageError(false);
+              setImageURL(""); //remove old URL
+            }} />
+          <Button variant="contained"
+            onClick={async () => {
+              try {
+                //first check if size > 5MB
+                if (!imageFile) return; //no image, so do nothing - don't even throw an error
+                if (imageFile.size > 5 * 1024 * 1024) throw new Error("Image too big")
+                let imageName = intToBase64(Date.now());
+                //current time down to the milisecond
+                //if I somehow get name conflicts with this.........
+                const imageRef = stref(firebaseStorage, imageName, {
+                  customMetadata: {
+                    //metadata
+                    user: user.email
+                  }
+                });
+                console.log("Starting upload...");
+                setImageLoading(true);
+                await uploadBytes(imageRef, imageFile);
+                console.log("Successfully uploaded file, getting URL...");
+                let url = await getDownloadURL(imageRef);
+                setImageError(false);
+                setImageLoading(false);
+                setImageURL(url);
+                console.log("Success!")
+
+              } catch (err) {
+                setImageError(true);
+                console.error("Error in uploading image");
+                console.error(err);
+              }
+            }}>Upload</Button>
+        </div>
+        {imageFile && (
+          <div>Image size: {imageFile.size < 1024 ? `${imageFile.size} bytes` : imageFile.size < 1024 * 1024 ? `${(imageFile.size / 1024).toFixed(2)} KB` : `${(imageFile.size / (1024 * 1024)).toFixed(2)} MB`}</div>
+        )}
+        {imageLoading && (
+          <div>Uploading your image...</div>
+        )}
+        {imageURL !== "" && (
+          <div style={{ width: "90%" }}>Successfully uploaded image. If you wish to upload another image, simply select another one (click "Browse...") and then click Upload again. Image URL is {imageURL} and will be attached automatically.</div>
+        )}
+        {imageError && (
+          <div style={{ color: "red" }}>
+            Error in uploading image. This could be because:
+            <ul>
+              <li>The image is bigger than 5 MB</li>
+              <li>Some other error, check the console for more details</li>
+            </ul>
+          </div>)}
+        <h5>Image Preview</h5>
+        <StyledImg src={!!imageFile ? imagePreview : imageURL} alt="Your uploaded image" style={{ width: "100%" }} />
+      </div>
+      <Button variant="contained" type="submit">{dialogOpen} Event</Button>
+      {eventError && <div style={{ color: "red" }}>
+        <p>Error, please check the console for more details. Make sure that: </p>
+        <ul>
+          <li>The end time of your event is STRICTLY AFTER the start time</li>
+          <li>The start time of your event is AFTER the current time (right now). Sorry, no retrospective events!</li>
+          <li>You haven't used any weird characters (such as ., #, $, [, ] )</li>
+        </ul>
+      </div>}
+    </Card>
+  </Dialog>
+  );
+}
+
+function Navbar({
+  darkMode,
+  setDarkMode,
+}) {
+  
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+	const [userError, setUserError] = useState(false); //login form error status
+  const [showManage, setShowManage] = useState(false);
+  
 	const loginFormRef = useRef(null); //ref to login form at bottom of page
-	const addEventFormRef = useRef(null); //ref to add/edit events form that opens when 'Add Event' or 'Edit' is clicked
+	
+	const { user, events, entities, privileges } = useFirebase();
+	
+	const toggleMenu = () => {
+		setIsMenuOpen(!isMenuOpen);
+	};
+
+	const toggleManage = () => {
+		setShowManage(!showManage);
+	};
+	
+	const logOut = () => {
+	  if (user) {
+      signOut(firebaseAuth).catch((err) => {
+        console.error('Problem while signing out');
+        console.error(err);
+      })
+	  } 
+	}
+	
+	const userButton = () => {
+	  toggleManage();
+	}
+	
+  return (
+  <>
+  <div
+    className="navbar"
+    style={{
+      position: 'relative',
+      top: '0',
+      zIndex: '1000',
+      width: "100%",
+//       backdropFilter: 'blur(10px)',
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 10px',
+    }}
+  >
+    <div className="logo">
+      <img className="logo" src={darkMode ?  logo: logo_dark } alt="IITK Logo" />
+    </div>
+    <h1 className="navbar-title"
+      style={{
+        textAlign: "center",
+        color: darkMode ? '#ffffff' : '#000000', 
+        flexGrow: 1,
+        margin: 0,
+      }}
+    >
+      {"IITK Student's Gymkhana Event Calendar"}
+    </h1>
+    <div className="icon" >
+      <Fab
+        variant="contained"
+        onClick={() => { setDarkMode(!darkMode); }}
+        style={{ marginRight: '10px' }}
+        className="icon"
+      >
+        {darkMode ? <LightMode /> : <DarkMode />}
+      </Fab>
+      <Button
+        className="icon"
+        style={{
+          borderRadius: "100px"
+        }}
+        variant="contained"
+        onClick={userButton}
+      >
+        {user ? 'Add User/Sign Out' : 'Log In'}
+      </Button>
+    </div>
+    {/* Hamburger menu */}
+    <div className="hamburger-menu" onClick={toggleMenu}>
+      <MenuIcon />
+    </div>
+    {/* Dropdown menu for small screens */}
+    {isMenuOpen && (
+    <div
+      className="dropdown-menu"
+      style={{
+        position: 'absolute',
+        top: '50px',
+        right: '10px',
+        backgroundColor: darkMode ? '#333' : '#fff',
+        padding: '10px',
+        borderRadius: '5px',
+        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap:'30px'
+        }}
+      >
+        <Fab
+      variant="contained"
+      onClick={() => { setDarkMode(!darkMode); }}
+      style={{ marginRight: '10px' }}
+      className="icon"
+    >
+      {darkMode ? <LightMode /> : <DarkMode />}
+    </Fab>
+    <Button
+        className="icon"
+        style={{
+          borderRadius: "1000px"
+        }}
+        variant="contained"
+        onClick={userButton}
+      >
+        {user ? 'Add User/Sign Out' : 'Log In'}
+      </Button>
+      </div>
+    </div>
+    )}
+  </div>
+  <Dialog 
+    open={showManage}
+    onClose={() => setShowManage(false)}
+    fullWidth
+  >
+    <Grid
+      item
+      xs={12}
+      style={{
+        padding: "20px",
+        
+      }}
+    >
+      {user ? (
+        <div style={{
+          display:"flex",
+          flexDirection:"column",
+          width:"100%",
+          height:"100%",
+        }}>
+          <div>Note: your UID is {user.uid}.</div>
+          {!isEmpty(privileges) && <>
+            <h3 style={{
+              textAlign: "center",
+              fontSize: "1.1em"
+            }}>
+              Add Club/Society/Council Organisation
+            </h3>          
+          </>}
+          <Button style={{margin:"auto"}}
+            onClick={logOut}
+          >Sign Out</Button>
+        </div>
+      ) : (
+      <form
+        name="login"
+        ref={loginFormRef}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '10px',
+          margin: 'auto',
+//           color: 'white',
+          width: 'fit-content',
+        }}
+        onSubmit={async (e) => {
+          try {
+            e.preventDefault();
+            let formData = new FormData(loginFormRef.current);
+            await signInWithEmailAndPassword(firebaseAuth, formData.get('email'), formData.get('password'));
+            setUserError(false);
+            setShowManage(false);
+          } catch (err) {
+            console.error(err);
+            setUserError(true);
+          }
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: "column", gap: '10px' }}>
+          <h3 style={{
+            textAlign: "center",
+            fontSize: "2em"
+          }}>
+            Log In:
+          </h3>
+          <TextField
+            label="Enter email"
+            name="email"
+            type="email"
+            error={userError}
+            helperText={userError ? 'Error, please check console for more details' : ' '}
+            onChange={() => setUserError(false)}
+          />
+          <TextField
+            label="Enter password"
+            name="password"
+            type="password"
+            error={userError}
+            helperText=" "
+            onChange={() => setUserError(false)}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <Button variant="contained" type="submit">
+            Log in
+          </Button>
+          to add events
+        </div>
+        <Button
+          variant="contained"
+          type="button"
+          onClick={async () => {
+            try {
+              let formData = new FormData(loginFormRef.current);
+              await sendPasswordResetEmail(firebaseAuth, formData.get('email'));
+              alert('A password reset email has been sent. Please follow the instructions in the email to reset your password.');
+            } catch (err) {
+              console.error('Error in sending password reset email');
+              console.error(err);
+              setUserError(true);
+            }
+          }}
+        >
+          Forgot password?
+        </Button>
+      </form>
+      )}
+    </Grid>
+  </Dialog>
+	</>)
+}
+
+function App() {
+	const [dialogOpen, setDialog] = useState(false); //events dialog open or not? can be false, "add", or "edit"
+	const [dialogEdit, setDialogEdit] = useState({}); //event object  to display in edit events form (if editing event)
+	
+	const [fbmsgError, setFbmsgError] = useState(false); //if firebase messaging doesn't work, show the 'your browser sux' alert
+
+	const [darkMode, setDarkMode] = useState(
+		localStorage.getItem("darkMode") === "true"
+	); //light or dark mode, get from localstorage
+
+	const theme = darkMode ? darkTheme : lightTheme;
+	const calendarTheme = darkMode ? darkThemeControls : lightThemeControls;
+	const muiTheme = darkMode ? muiDarkTheme : muiLightTheme;
 
 	const { user, events, entities, privileges } = useFirebase();
 
@@ -260,7 +715,6 @@ function App() {
 
 	useEffect(() => {
 		//whenever darkmode changes, change body background color and save pref to localStorage
-
 		document.body.style.backgroundColor = theme.secondaryColor;
 		document.body.style.color = theme.textColor;
 		if (darkMode) { //has been set to true
@@ -269,19 +723,6 @@ function App() {
 			localStorage.removeItem("darkMode");
 		}
 	}, [darkMode, theme /* tell eslint to stfu */])
-
-	useEffect(() => {
-		//whenever imageFile changes, set up a FileReader to
-		//read the data into imagePreview so that the <img> in the
-		//upload picture form can display it
-		if (imageFile != null) {
-			const fr = new FileReader();
-			fr.addEventListener("load", () => {
-				setImagePreview(fr.result);
-			});
-			fr.readAsDataURL(imageFile);
-		}
-	}, [imageFile]);
 
 	// useEffect(() => {
 	// 		//on load: get user's notification token
@@ -315,7 +756,8 @@ function App() {
 	}
 
 	function addEvent(date) {
-		setDialogDate(`${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
+		// setDialogDate(`${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
+		setDialogEdit({date});
 		setDialog("add");
 	}
 
@@ -336,14 +778,14 @@ function App() {
 	function editEvent(event) {
 		console.log("edit event")
 		let date = new Date(event.date);
-		setDialogDate(`${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
+// 		setDialogDate(`${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
 		let end_mins = date.getHours() * 60 + date.getMinutes() + event.duration; //num miliseconds since start of day of date/num miliseconds in a minute
 		console.log(end_mins)
 		event.start = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
 		event.end = `${Math.trunc(end_mins / 60).toString().padStart(2, '0')}:${Math.trunc(end_mins % 60).toString().padStart(2, 0)}`
 		console.log(event);
 		setDialogEdit(event);
-		setImageURL(event.image);
+		
 		setDialog("edit")
 	}
 
@@ -411,27 +853,9 @@ function App() {
 
 	function closeDialog() {
 		setDialog(false);
-		setImagePreview(null);
-		setImageFile(null);
-		setImageURL("");
-		setImageLoading(false);
-		setDialogDate("");
 		setDialogEdit({});
 	}
-	const [Login, setLogin] = useState(
-		localStorage.getItem("Login") === "true"
-	);
-	const [showLogin, setShowLogin] = useState(false);
-	const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-	const handleButtonClick = () => {
-		setShowLogin(!showLogin);
-	};
-
-	const [isMenuOpen, setIsMenuOpen] = useState(false);
-	const toggleMenu = () => {
-		setIsMenuOpen(!isMenuOpen);
-	};
+	
 	return (
 		<>
 			<UserContext.Provider value={{ ...user, userNotifToken }}>
@@ -439,365 +863,12 @@ function App() {
 					<MuiThemeProvider theme={{ [THEME_ID]: muiTheme }}>
 						<NotificationDialog setUserNotifToken={setUserNotifToken} />
 						{fbmsgError && <UnsupportedBrowserDialog />}
-						<div
-							className="navbar"
-							style={{
-								position: 'relative',
-								top: '0',
-								zIndex: '1000',
-								width: "100%",
-								backdropFilter: 'blur(10px)',
-								display: 'flex',
-								flexDirection: 'row',
-								alignItems: 'center',
-								justifyContent: 'space-between',
-								padding: '0 10px',
-							}}
-						>
-							<div className="logo">
-								<img className="logo" src={darkMode ?  logo: logo_dark } alt="" />
-							</div>
-							<h1 className="navbar-title"
-								style={{
-									textAlign: "center",
-									color: darkMode ? '#ffffff' : '#000000', 
-									flexGrow: 1,
-									margin: 0,
-								}}
-							>
-								{"IITK Student's Gymkhana Event Calendar"}
-							</h1>
-							<div className="icon" >
-								<Fab
-									variant="contained"
-									onClick={() => { setDarkMode(!darkMode); }}
-									style={{ marginRight: '10px' }}
-									className="icon"
-								>
-									{darkMode ? <LightMode /> : <DarkMode />}
-								</Fab>
-								<Fab
-									className="icon"
-									variant="contained"
-									onClick={handleButtonClick}
-								>
-									{isLoggedIn ? 'Sign Out' : 'Login'}
-								</Fab>
-							</div>
-
-
-
-							{/* Hamburger menu */}
-							<div className="hamburger-menu" onClick={toggleMenu}>
-								<MenuIcon />
-							</div>
-
-							{/* Dropdown menu for small screens */}
-							{isMenuOpen && (
-								<div
-									className="dropdown-menu"
-									style={{
-										position: 'absolute',
-										top: '50px',
-										right: '10px',
-										backgroundColor: darkMode ? '#333' : '#fff',
-										padding: '10px',
-										borderRadius: '5px',
-										boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
-									}}
-								>
-									<div
-										style={{
-											display: 'flex',
-											flexDirection: 'column',
-											alignItems: 'flex-start',
-											gap:'30px'
-										}}
-									>
-										<Fab
-									variant="contained"
-									onClick={() => { setDarkMode(!darkMode); }}
-									style={{ marginRight: '10px' }}
-									className="icon"
-								>
-									{darkMode ? <LightMode /> : <DarkMode />}
-								</Fab>
-								<Fab
-									className="icon"
-									variant="contained"
-									onClick={handleButtonClick}
-								>
-									{isLoggedIn ? 'Sign Out' : 'Login'}
-								</Fab>
-									</div>
-								</div>
-							)}
-						</div>
-						{showLogin && !isLoggedIn && (
-							<>
-								<div
-									style={{
-										display: 'fixed',
-										position: 'fixed',
-										top: 0,
-										left: 0,
-										width: '100%',
-										height: '100%',
-										backdropFilter: 'blur(10px)', // Semi-transparent black overlay
-										zIndex: 9999, // Ensure it's below the form
-									}}
-									onClick={() => setShowLogin(false)} // Close form when clicking on overlay
-								/>
-								<Grid
-									item
-									xs={12}
-									style={{
-										position: 'fixed',
-										top: '20%',
-										left: '50%',
-										transform: 'translate(-50%, -20%)',
-										padding: '15px',
-										backdropFilter: 'blur(10px)',
-										backgroundColor: 'rgb(0,0,0,0.5)',
-										color: 'rgb(255, 255, 255)',
-										zIndex: 10000,
-										borderRadius: '8px',
-										width: 'fit-content',
-									}}
-								>
-									{user ? (
-										<div style={{ width: '100%', display: 'flex', justifyContent: 'space-evenly' }}>
-											<div>
-												Welcome, {user?.email}.
-												<Button
-													variant="contained"
-													onClick={() =>
-														signOut(firebaseAuth)
-															.catch((err) => {
-																console.error('Problem while signing out');
-																console.error(err);
-															})
-													}
-												>
-													Sign out
-												</Button>
-											</div>
-										</div>
-									) : (
-										<h3>
-											<form
-												name="login"
-												ref={loginFormRef}
-												style={{
-													display: 'flex',
-													flexDirection: 'column',
-													alignItems: 'center',
-													gap: '10px',
-													margin: 'auto',
-													color: 'white',
-													width: 'fit-content',
-												}}
-												onSubmit={async (e) => {
-													try {
-														e.preventDefault();
-														let formData = new FormData(loginFormRef.current);
-														await signInWithEmailAndPassword(firebaseAuth, formData.get('email'), formData.get('password'));
-														setUserError(false);
-													} catch (err) {
-														console.error(err);
-														setUserError(true);
-													}
-												}}
-											>
-												<div style={{ display: 'flex', gap: '10px' }}>
-													<TextField
-														label="Enter email"
-														name="email"
-														type="email"
-														error={userError}
-														helperText={userError ? 'Error, please check console for more details' : ' '}
-														onChange={() => setUserError(false)}
-													/>
-													<TextField
-														label="Enter password"
-														name="password"
-														type="password"
-														error={userError}
-														helperText=" "
-														onChange={() => setUserError(false)}
-													/>
-												</div>
-												<div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-													<Button variant="contained" type="submit">
-														Log in
-													</Button>
-													to add events
-												</div>
-												<Button
-													variant="contained"
-													type="button"
-													onClick={async () => {
-														try {
-															let formData = new FormData(loginFormRef.current);
-															await sendPasswordResetEmail(firebaseAuth, formData.get('email'));
-															alert('A password reset email has been sent. Please follow the instructions in the email to reset your password.');
-														} catch (err) {
-															console.error('Error in sending password reset email');
-															console.error(err);
-															setUserError(true);
-														}
-													}}
-												>
-													Forgot password?
-												</Button>
-											</form>
-										</h3>
-									)}
-								</Grid>
-							</>
-						)}
-						<Dialog open={!!dialogOpen}
-							onClose={closeDialog} fullWidth>
-							<Card name="add-event" ref={addEventFormRef} component={StyledForm} id="myform" sx={{ width: "100%", display: "flex", flexDirection: "column", gap: "10px", overflow: "auto" }} onSubmit={async (e) => {
-								e.preventDefault();
-								let submissionObj = {}
-								try {
-									let formData = new FormData(addEventFormRef.current);
-									console.log(formData);
-									//check if start time before end time, otherwise call the user a dumbfuck and stawp
-									let [startH, startM] = formData.get("start").split(":");
-									let [endH, endM] = formData.get("end").split(":");
-									if (Number(startH) >= Number(endH) && Number(startM) >= Number(endM)) {
-										setEventError(true);
-										throw new Error("Event ends before it starts");
-									}
-									//check if start time is before right now, if so again fail
-									if ((new Date(formData.get("date") + " " + formData.get("start"))).getTime() < Date.now()) {
-										setEventError(true);
-										throw new Error("Event start time before current time");
-									}
-
-									submissionObj = {
-										name: formData.get("name"),
-										date: (new Date(formData.get("date") + " " + formData.get("start"))).getTime(),
-										desc: formData.get("desc"),
-										duration: (Number(endH) - Number(startH)) * 60 + (Number(endM) - Number(startM)),
-										image: imageURL,
-										venue: formData.get("venue"),
-										org: formData.get("org")
-									}
-
-									if (dialogOpen === "add") {
-										//push event!!!						
-										await push(requestedRef, submissionObj)
-										console.log("Pushed event successfully");
-									} else if (dialogOpen === "edit") {
-										await update(child(
-											(dialogEdit.status === "requested" ? requestedRef : approvedRef),
-											dialogEdit.key
-										), submissionObj);
-									}
-									console.log("Success")
-									closeDialog();
-								} catch (err) {
-									//something fucked up
-									setEventError(true);
-									console.error("Error in adding event");
-									console.error(err);
-									console.error("Event:")
-									console.log(submissionObj);
-									console.log(dialogEdit);
-								}
-							}}>
-								<h1>Add an Event</h1>
-								<FormControl fullWidth>
-									<InputLabel>Organisation</InputLabel>
-									<Select label="Organisation" name="org" defaultValue={dialogEdit.orgKey}>
-										<MenuItem value={undefined} disabled />
-										{privileges ? Object.keys(privileges).map(el => <MenuItem value={el} key={el}>{entities[el]}</MenuItem>) : ""}
-									</Select>
-								</FormControl>
-								<div style={{ width: "100%", display: "flex", gap: "10px" }}>
-									<TextField label="Name" name="name" defaultValue={dialogEdit.name} fullWidth required />
-									<TextField label="Venue" name="venue" defaultValue={dialogEdit.venue} fullWidth required />
-								</div>
-								<TextField label="Description (will be mailed as well)" name="desc" defaultValue={dialogEdit.desc} multiline fullWidth required />
-								<div style={{ display: "flex", width: "100%", gap: "10px" }}>
-									<TextField helperText="Date" name="date" type="date" defaultValue={dialogDate} onChange={(e) => { setDialogDate(e.target.value) }} sx={{ flexGrow: "3" }} required />
-									<TextField helperText="Start Time" name="start" type="time" defaultValue={dialogEdit.start} sx={{ flexGrow: "2" }} required /><TextField helperText="End Time" name="end" type="time" defaultValue={dialogEdit.end} sx={{ flexGrow: "2" }} required />
-								</div>
-								<div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", width: "100%" }}>
-									<h3>Upload image (max 5 MB, PNG, JPG, GIF only)</h3>
-									<div style={{ display: "flex", width: "100%", gap: "10px", alignItems: "center", justifyContent: "space-between" }}>
-										<input type="file" accept=".png,.jpg,.jpeg,.gif" name="file" form="dummy"
-											onChange={(e) => {
-												setImageFile(e.target.files[0]);
-												setImageError(false);
-												setImageURL(""); //remove old URL
-											}} />
-										<Button variant="contained"
-											onClick={async () => {
-												try {
-													//first check if size > 5MB
-													if (!imageFile) return; //no image, so do nothing - don't even throw an error
-													if (imageFile.size > 5 * 1024 * 1024) throw new Error("Image too big")
-													let imageName = intToBase64(Date.now());
-													//current time down to the milisecond
-													//if I somehow get name conflicts with this.........
-													const imageRef = stref(firebaseStorage, imageName, {
-														customMetadata: {
-															//metadata
-															user: user.email
-														}
-													});
-													console.log("Starting upload...");
-													setImageLoading(true);
-													await uploadBytes(imageRef, imageFile);
-													console.log("Successfully uploaded file, getting URL...");
-													let url = await getDownloadURL(imageRef);
-													setImageError(false);
-													setImageLoading(false);
-													setImageURL(url);
-													console.log("Success!")
-
-												} catch (err) {
-													setImageError(true);
-													console.error("Error in uploading image");
-													console.error(err);
-												}
-											}}>Upload</Button>
-									</div>
-									{imageFile && (
-										<div>Image size: {imageFile.size < 1024 ? `${imageFile.size} bytes` : imageFile.size < 1024 * 1024 ? `${(imageFile.size / 1024).toFixed(2)} KB` : `${(imageFile.size / (1024 * 1024)).toFixed(2)} MB`}</div>
-									)}
-									{imageLoading && (
-										<div>Uploading your image...</div>
-									)}
-									{imageURL !== "" && (
-										<div style={{ width: "90%" }}>Successfully uploaded image. If you wish to upload another image, simply select another one (click "Browse...") and then click Upload again. Image URL is {imageURL} and will be attached automatically.</div>
-									)}
-									{imageError && (
-										<div style={{ color: "red" }}>
-											Error in uploading image. This could be because:
-											<ul>
-												<li>The image is bigger than 5 MB</li>
-												<li>Some other error, check the console for more details</li>
-											</ul>
-										</div>)}
-									<h5>Image Preview</h5>
-									<StyledImg src={!!imageFile ? imagePreview : imageURL} alt="Your uploaded image" style={{ width: "100%" }} />
-								</div>
-								<Button variant="contained" type="submit">{dialogOpen} Event</Button>
-								{eventError && <div style={{ color: "red" }}>
-									<p>Error, please check the console for more details. Make sure that: </p>
-									<ul>
-										<li>The end time of your event is STRICTLY AFTER the start time</li>
-										<li>The start time of your event is AFTER the current time (right now). Sorry, no retrospective events!</li>
-										<li>You haven't used any weird characters (such as ., #, $, [, ] )</li>
-									</ul>
-								</div>}
-							</Card>
-						</Dialog>
+						<Navbar darkMode={darkMode} setDarkMode={setDarkMode} />
+						<AddEditEventsDialog
+						  dialogOpen={dialogOpen}
+						  dialogEdit={dialogEdit}
+						  closeDialog={closeDialog}
+						/>
 						<div style={{ width: "97.5%", margin: "auto" }}>
 							<Grid spacing={2} container sx={{}}>
 								<Grid item xs={12} md={8}>
