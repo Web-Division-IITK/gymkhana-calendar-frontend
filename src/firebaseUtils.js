@@ -60,7 +60,7 @@ function unpackEvents(snapshot, status, entities) {
 	snapshot.forEach(el => {
 		let event = el.val();
 		event.orgKey = event.org;
-		event.org = entities[event.orgKey];
+		event.org = entities[event.orgKey].name;
 		event.key = el.key;
 		event.status = status;
 		eventsArr.push(event);
@@ -80,7 +80,26 @@ function unpackEvents(snapshot, status, entities) {
 function unpackEntities(entities_temp) {
     return Object.fromEntries(Object.keys(entities_temp).flatMap(
 	    council => Object.keys(entities_temp[council]).map(
-			club => [club, entities_temp[council][club]])));
+			club => [
+			    club,
+			    { type: "club", 
+			    name: entities_temp[council][club]}
+			]).concat([[council, {type: "council", name: `${council.toUpperCase()} Council`}]])));
+}
+
+async function fetchEverythingExceptRequested(old_requested) {
+    let entities_temp = unpackEntities((await get(entitiesRef)).val());
+    let users_temp = (await get(usersRef)).val();
+    let snapshot = await get(approvedRef);
+    return ({
+        //turn two-level council -> orgs list into flat orgs list
+        entities: entities_temp,
+        events: {
+            approved: unpackEvents(snapshot, "approved", entities_temp),
+            requested: old_requested,
+        },
+        validUsers: users_temp == null ? {} : users_temp,
+    });
 }
 
 const firebaseEventsStore = {
@@ -107,19 +126,8 @@ const firebaseEventsStore = {
 		let prev = Number(localStorage.getItem("updateTime")); //null if not present
 			if (Date.now() - Number(prev) > this.pollTime*60*1000) { 
 				try {
-					let entities_temp = (await get(entitiesRef)).val();
-					let users_temp = (await get(usersRef)).val();
-					console.log(entities_temp);
-					let snapshot = await get(approvedRef);
-					this.setReturnValue({
-					    //turn two-level council -> orgs list into flat orgs list
-						entities: unpackEntities(entities_temp),
-						events: {
-							approved: unpackEvents(snapshot, "approved", entities_temp),
-							requested: this.returnValue.events.requested,
-						},
-						validUsers: users_temp == null ? {} : users_temp,
-					})
+					this.setReturnValue(await fetchEverythingExceptRequested(this.returnValue.events.requested));
+// 					console.log(this.returnValue.entities);
 					localStorage.setItem("events",JSON.stringify(this.returnValue.events.approved));
 					localStorage.setItem("entities",JSON.stringify(this.returnValue.entities));
 					localStorage.setItem("validUsers", JSON.stringify(this.returnValue.validUsers));
@@ -179,12 +187,16 @@ const firebaseEventsStore = {
 			//we can store the callback in eventsUnsub so shouldn't be a problem...?
 			// console.log("onAuthStateChanged callback");
 			//check if admin
-			let admin = (await firebaseAuth.currentUser.getIdTokenResult()).claims.admin;
+			let admin = firebaseAuth.currentUser && (await firebaseAuth.currentUser.getIdTokenResult()).claims.admin;
+			
+			//in case not yet fetched for some reason
+			this.setReturnValue(await fetchEverythingExceptRequested(this.returnValue.events.requested));
 			
 			if (firebaseAuth.currentUser && (this.returnValue.validUsers[firebaseAuth.currentUser.uid] || admin)) {
 				//clear the polling
 				if (this.interval !== 0) clearInterval(this.interval);
 				//signed in -> set up callback
+				
 				let approvedUnsub = onValue(approvedRef, (snapshot) => {
 // 					console.log("New approved events data");
 					// console.log(snapshot);
@@ -216,7 +228,7 @@ const firebaseEventsStore = {
 					approvedUnsub();
 					requestedUnsub();
 				}
-			} else if (!this.returnValue.validUsers[firebaseAuth.currentUser.uid]) {
+			} else if (firebaseAuth.currentUser && !this.returnValue.validUsers[firebaseAuth.currentUser.uid]) {
 			    //do nothing
 			} else { //i.e. when signing out
 				// console.log("signout unsub");
@@ -299,6 +311,7 @@ export function useFirebase() {//hook to abstract all firebase details
 				for (const entity of Object.keys(entities)) {
 					temp[entity] = "approve";
 				}
+				temp.admin = true;
 				setPrivileges(temp);
 			} else if (claims.roles !== undefined) {
 			    setPrivileges(claims.roles);
@@ -315,5 +328,6 @@ export function useFirebase() {//hook to abstract all firebase details
 		events,
 		entities,
 		privileges,
+		validUsers
 	}
 }

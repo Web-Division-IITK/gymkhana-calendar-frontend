@@ -12,6 +12,9 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Snackbar from "@mui/material/Snackbar";
 import TextField from "@mui/material/TextField";
+import Autocomplete from "@mui/material/Autocomplete";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Checkbox from "@mui/material/Checkbox";
 
 import DarkMode from "@mui/icons-material/DarkMode";
 import LightMode from "@mui/icons-material/LightMode";
@@ -23,7 +26,7 @@ import helperFunctions from "./revo-calendar/helpers/functions";
 
 import styled, { ThemeProvider } from "styled-components";
 
-import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword } from "firebase/auth";
 import { ref as dbref, push, child, remove, update } from "firebase/database";
 import { ref as stref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getToken } from "firebase/messaging";
@@ -224,7 +227,7 @@ function AddEditEventsDialog({
 	const [eventError, setEventError] = useState(false); //add event form error status
 	const [imageError, setImageError] = useState(false); //image upload error status
   
-  const { user, events, entities, privileges } = useFirebase();
+  const { user, events, entities, privileges, validUsers } = useFirebase();
   
   useEffect(() => {
 		//whenever imageFile changes, set up a FileReader to
@@ -319,7 +322,7 @@ function AddEditEventsDialog({
         <InputLabel>Organisation</InputLabel>
         <Select label="Organisation" name="org" defaultValue={dialogEdit.orgKey}>
           <MenuItem value={undefined} disabled />
-          {privileges ? Object.keys(privileges).map(el => <MenuItem value={el} key={el}>{entities[el]}</MenuItem>) : ""}
+          {privileges ? Object.keys(privileges).map(el => entities[el] !== undefined && <MenuItem value={el} key={el}>{entities[el].name}</MenuItem>) : ""}
         </Select>
       </FormControl>
       <div style={{ width: "100%", display: "flex", gap: "10px" }}>
@@ -426,11 +429,13 @@ function Navbar({
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const [userError, setUserError] = useState(false); //login form error status
+	const [addClubError, setAddClubError] = useState(false); //add club form error status
   const [showManage, setShowManage] = useState(false);
   
 	const loginFormRef = useRef(null); //ref to login form at bottom of page
+	const addClubFormRef = useRef(null);
 	
-	const { user, events, entities, privileges } = useFirebase();
+	const { user, events, entities, privileges, validUsers } = useFirebase();
 	
 	const toggleMenu = () => {
 		setIsMenuOpen(!isMenuOpen);
@@ -500,7 +505,7 @@ function Navbar({
         variant="contained"
         onClick={userButton}
       >
-        {user ? 'Add User/Sign Out' : 'Log In'}
+        {user ? 'Add User/Sign Out' : 'Log In/Sign Up'}
       </Button>
     </div>
     {/* Hamburger menu */}
@@ -545,7 +550,7 @@ function Navbar({
         variant="contained"
         onClick={userButton}
       >
-        {user ? 'Add User/Sign Out' : 'Log In'}
+        {user ? 'Add User/Sign Out' : 'Log In/Sign Up'}
       </Button>
       </div>
     </div>
@@ -573,12 +578,93 @@ function Navbar({
         }}>
           <div>Note: your UID is {user.uid}.</div>
           {!isEmpty(privileges) && <>
-            <h3 style={{
-              textAlign: "center",
-              fontSize: "1.1em"
-            }}>
-              Add Club/Society/Council Organisation
-            </h3>          
+            <form name="addclub"
+              ref={addClubFormRef}
+              onSubmit={async (e) => {
+                try{
+                  e.preventDefault();
+                  let formData = new FormData(addClubFormRef.current);
+                  console.log(formData);
+                  let club_short_name_root = formData.get("name").split(" ").map(el => el[0].toLowerCase()).join();
+                  let club_short_name = club_short_name_root;
+                  let i = 1;
+                  while (entities.hasOwnProperty(club_short_name)) {
+                    club_short_name = `${club_short_name_root}${i}`;
+                    i++;
+                  }
+                  let council_name = formData.get("council").split(" ")[0].toLowerCase();
+                  let approval = formData.get("approval") !== null;
+                  let councilwide = formData.get("councilwide") !== null;
+                  let role = {};
+                  if (councilwide) {
+                    role[council_name] = "approve";
+                  }
+                  if (approval) {
+                    role[club_short_name] = "approve";
+                  } else {
+                    role[club_short_name] = true;
+                  }
+                  
+                  let usersObj = {
+                    council: council_name,
+                    roles: role,
+                  };
+                  
+                  await update(dbref(firebaseDatabase), {
+                    [`entities/${council_name}/${club_short_name}`]: formData.get("name"),
+                    [`users/${formData.get('uid')}`]: usersObj
+                  });
+                  setAddClubError(false);
+                  setShowManage(false);
+                } catch (err) {
+                  console.err(err);
+                  setAddClubError(true);
+                }
+              }}
+            >
+              <h3 style={{
+                textAlign: "center",
+                fontSize: "1.1em"
+              }}>
+                Add Club/Society/Council Organisation Account
+              </h3>
+              <TextField style={{width: "100%"}}
+                label="Enter UID of account belonging to club/society"
+                name="uid"
+                type="text"
+                error={addClubError}
+                helperText={addClubError ? 'Error, please check console for more details' : ' '}
+                onChange={() => setAddClubError(false)}
+              />
+              <TextField style={{width: "100%"}}
+                label="Enter club name"
+                name="name"
+                type="text"
+                error={addClubError}
+                helperText={addClubError ? 'Error, please check console for more details' : ' '}
+                onChange={() => setAddClubError(false)}
+              />
+              <Autocomplete freeSolo={privileges.admin}
+                options={privileges ? 
+                  Object.keys(privileges)
+                  .filter(el => 
+                    entities[el] !== undefined 
+                    && entities[el].type === "council" 
+                    && privileges[el] === "approve")
+                  .map(el => `${el.toUpperCase()} Council`) 
+                  : []}
+                renderInput={(params) => <TextField {...params} label="Council" name="council"/>}
+              />
+              <FormControlLabel style={{width: "100%"}}
+                label="Allow club to publish its own events without GenSec approval?"
+                control={<Checkbox name="approval" />}
+              />
+              <FormControlLabel style={{width: "100%"}}
+                label="Allow council-wide event permissions?"
+                control={<Checkbox name="councilwide" />}
+              />
+              <Button type="submit">Add Club Account</Button>
+            </form>
           </>}
           <Button style={{margin:"auto"}}
             onClick={logOut}
@@ -601,7 +687,11 @@ function Navbar({
           try {
             e.preventDefault();
             let formData = new FormData(loginFormRef.current);
-            await signInWithEmailAndPassword(firebaseAuth, formData.get('email'), formData.get('password'));
+            if (e.nativeEvent.submitter.name === "login-button") {
+              await signInWithEmailAndPassword(firebaseAuth, formData.get('email'), formData.get('password'));
+            } else {
+              await createUserWithEmailAndPassword(firebaseAuth, formData.get('email'), formData.get('password'));
+            }
             setUserError(false);
             setShowManage(false);
           } catch (err) {
@@ -635,8 +725,12 @@ function Navbar({
           />
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <Button variant="contained" type="submit">
+          <Button variant="contained" type="submit" name="login-button">
             Log in
+          </Button>
+          or 
+          <Button variant="contained" type="submit" name="signup-button">
+            sign up
           </Button>
           to add events
         </div>
@@ -678,7 +772,7 @@ function App() {
 	const calendarTheme = darkMode ? darkThemeControls : lightThemeControls;
 	const muiTheme = darkMode ? muiDarkTheme : muiLightTheme;
 
-	const { user, events, entities, privileges } = useFirebase();
+	const { user, events, entities, privileges, validUsers } = useFirebase();
 
 	const [userNotifToken, setUserNotifToken] = useState(""); //firebase notification token
 	const [subscribedEventKeys, setSubscribedEventKeys] = useState([]); //the keys (event.key) of the event that the token is subscribed to
@@ -722,7 +816,7 @@ function App() {
 		} else { //has been set to false
 			localStorage.removeItem("darkMode");
 		}
-	}, [darkMode, theme /* tell eslint to stfu */])
+	}, [darkMode, theme])
 
 	// useEffect(() => {
 	// 		//on load: get user's notification token
@@ -863,7 +957,10 @@ function App() {
 					<MuiThemeProvider theme={{ [THEME_ID]: muiTheme }}>
 						<NotificationDialog setUserNotifToken={setUserNotifToken} />
 						{fbmsgError && <UnsupportedBrowserDialog />}
-						<Navbar darkMode={darkMode} setDarkMode={setDarkMode} />
+						<Navbar
+						  darkMode={darkMode}
+						  setDarkMode={setDarkMode}
+						/>
 						<AddEditEventsDialog
 						  dialogOpen={dialogOpen}
 						  dialogEdit={dialogEdit}
@@ -886,7 +983,19 @@ function App() {
 										<h1>Upcoming Events</h1>
 										<div style={{ overflow: "auto" }}>
 											{allEvents.filter(event => (event.date - Date.now() > 0) && (event.date - Date.now() < 1000 * 60 * 60 * 24 * 7)).map((event, idx) => (
-												<Event event={event} index={idx} key={idx} withDate canEdit={!!privileges[event.orgKey]} canApprove={privileges[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={theme.primaryColor} style={{ width: "100%", marginBottom: "10px" }} />
+												<Event
+												  event={event}
+												  index={idx}
+												  key={idx}
+												  withDate
+												  canEdit={!!privileges[event.orgKey]}
+												  canApprove={privileges[event.orgKey] === "approve"}
+												  deleteEvent={deleteEvent}
+												  editEventApproval={editEventApproval}
+												  editEvent={editEvent}
+												  primaryColorRGB={theme.primaryColor}
+												  style={{ width: "100%", marginBottom: "10px" }}
+												/>
 											))}
 										</div>
 									</Box>
@@ -896,7 +1005,19 @@ function App() {
 										<h1>Your Subscribed Events</h1>
 										<div style={{ overflow: "auto" }}>
 											{allEvents.filter(event => event.subscribed && event.start > Date.now()).map((event, idx) => (
-												<Event event={event} index={idx} key={idx} withDate canEdit={!!privileges[event.orgKey]} canApprove={privileges[event.orgKey] === "approve"} deleteEvent={deleteEvent} editEventApproval={editEventApproval} editEvent={editEvent} primaryColorRGB={theme.primaryColor} style={{ width: "100%", marginBottom: "10px" }} />
+												<Event
+												  event={event}
+												  index={idx}
+												  key={idx}
+												  withDate
+												  canEdit={!!privileges[event.orgKey]}
+												  canApprove={privileges[event.orgKey] === "approve"}
+												  deleteEvent={deleteEvent}
+												  editEventApproval={editEventApproval}
+												  editEvent={editEvent}
+												  primaryColorRGB={theme.primaryColor}
+												  style={{ width: "100%", marginBottom: "10px" }}
+												/>
 											))}
 										</div>
 									</Box>

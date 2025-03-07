@@ -27,9 +27,12 @@
 		      ".validate": "newData.isString() && newData.val() != ''"
 		    },
 		    "roles": {
+		      "admin": {
+		        ".validate": "false",
+		      },
 		      "$role": {
-		        ".validate": "newData.val() === 'approve' || newData.val() === true"
-		      }
+		        ".validate": "newData.val() === 'approve' || newData.val() === true",
+		      },
 		    },
 		    "$other": {
 		      ".validate": "false",
