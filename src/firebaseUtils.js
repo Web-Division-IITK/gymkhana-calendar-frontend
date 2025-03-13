@@ -78,13 +78,21 @@ function unpackEvents(snapshot, status, entities) {
 }
 
 function unpackEntities(entities_temp) {
-    return Object.fromEntries(Object.keys(entities_temp).flatMap(
-	    council => Object.keys(entities_temp[council]).map(
-			club => [
-			    club,
-			    { type: "club", 
-			    name: entities_temp[council][club]}
-			]).concat([[council, {type: "council", name: `${council.toUpperCase()} Council`}]])));
+    return Object.fromEntries(
+        Object.keys(entities_temp).flatMap(
+            (council) => Object.keys(entities_temp[council])
+                        .map(
+                        club => [
+                            club,
+                            {
+                                type: "club", 
+                                name: entities_temp[council][club],
+                                council: council === "no council" ? "" : council,
+                            }
+                        ])
+                        .concat(council === "no council" ? [] : [[council, {type: "council", name: `${council.toUpperCase()} Council`, council: ""}]])
+	    )
+	);
 }
 
 async function fetchEverythingExceptRequested(old_requested) {
@@ -313,10 +321,30 @@ export function useFirebase() {//hook to abstract all firebase details
 				}
 				temp.admin = true;
 				setPrivileges(temp);
-			} else if (claims.roles !== undefined) {
-			    setPrivileges(claims.roles);
 			} else if (validUsers[user.uid] !== undefined) {
-			    setPrivileges(validUsers[user.uid].roles);
+			    //need to "repack" entities because roles can be council-based
+			    let temp = {};
+			    let packed_entities = {}; //{council: [entities] and entity: [entity]}
+			    for (const entity of Object.keys(entities)) {
+			        if (entities[entity].council != "") {
+			            if (!packed_entities.hasOwnProperty(entities[entity].council)) {
+			                packed_entities[entities[entity].council] = []
+			            }
+			            packed_entities[entities[entity].council].push(entity);
+			        }
+			        if (!packed_entities.hasOwnProperty(entity)) {
+			                packed_entities[entity] = []
+			        }
+			        packed_entities[entity].push(entity);
+			    }
+			    console.log(packed_entities);
+			    for (const role of Object.keys(validUsers[user.uid].roles)) {
+			        for (const entity of packed_entities[role]) {
+			            temp[entity] = validUsers[user.uid].roles[role]
+			        }
+			    }
+			    console.log(temp);
+			    setPrivileges(temp);
 			}
 		} else {
 			setPrivileges({});

@@ -129,6 +129,7 @@ ${event.desc}
 						||(!checked["students"] && varMailSelected && varMail !== ""); //send to "Specify recipients"
 						
 	const mailStr = `mailto:${sendArray.join()}?subject=${encodeURIComponent('[' + event.org + '] ' + event.name)}&body=${descWithDetails}`
+	const nwmMailStr = `https://nwm.iitk.ac.in/?_task=mail&_action=compose&_to=${sendArray.join()}&_subject=${encodeURIComponent('[' + event.org + '] ' + event.name)}&_body=${descWithDetails}`
 	const handleChange = (e) => {
 		setChecked({
 			...checked,
@@ -179,9 +180,11 @@ ${event.desc}
 			</FormGroup>
 			<p style={{color:(!ok ? "red" : ""), width: "100%"}}>Please select more than one group. If you've selected all students, please don't select any other group. If you've selected "Specify Emails", please enter the emails, comma-separated, in the text box.</p>
 			<p>Note: I can't attach images with mailto links so to attach the uploaded photo, you'll have to save it and attach it yourself when the email window opens. Sorry!</p>
-			<div style={{width:"100%", display:"flex", justifyContent:"space-between"}}><MuiButton component="a" href={mailStr} disabled={!ok} onClick={() => {setDialog(false);event.editEventApproval();}}>Send email</MuiButton>
-			<MuiButton onClick={() => {setDialog(false);}}>Cancel</MuiButton>
-			<MuiButton onClick={() => {setDialog(false); event.editEventApproval();}}>Approve without sending email</MuiButton></div>
+			<div style={{width:"100%", display:"flex", justifyContent:"space-evenly", flexWrap: "wrap", rowGap: "10px"}}>
+			    <MuiButton component="a" href={nwmMailStr} disabled={!ok} onClick={() => {setDialog(false);event.editEventApproval();}}>Open email in Webmail</MuiButton>
+                <MuiButton onClick={() => {setDialog(false);}}>Cancel</MuiButton>
+                <MuiButton onClick={() => {setDialog(false); event.editEventApproval();}}>Approve without sending email</MuiButton>
+            </div>
 			</Card>
 		</Dialog>
 		</>

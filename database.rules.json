@@ -7,7 +7,7 @@
 			  || root.child('users').child(auth.uid).child('roles').child($council).val() === 'approve'",
 			  "$name": {
 			    ".validate": "newData.isString() && newData.val() != ''"
-			  }
+			  },
 			}
 			
 		},

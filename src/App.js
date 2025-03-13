@@ -577,6 +577,7 @@ function Navbar({
           height:"100%",
         }}>
           <div>Note: your UID is {user.uid}.</div>
+          <div>Welcome, {user?.email}.</div>
           {!isEmpty(privileges) && <>
             <form name="addclub"
               ref={addClubFormRef}
@@ -585,18 +586,23 @@ function Navbar({
                   e.preventDefault();
                   let formData = new FormData(addClubFormRef.current);
                   console.log(formData);
-                  let club_short_name_root = formData.get("name").split(" ").map(el => el[0].toLowerCase()).join();
+                  let club_short_name_root = formData.get("name").split(" ").map(el => el[0].toLowerCase()).join("");
                   let club_short_name = club_short_name_root;
                   let i = 1;
                   while (entities.hasOwnProperty(club_short_name)) {
                     club_short_name = `${club_short_name_root}${i}`;
                     i++;
                   }
-                  let council_name = formData.get("council").split(" ")[0].toLowerCase();
+                  let council_name;
+                  if (formData.get("council") === "No Council" && privileges.admin) {
+                    council_name = "no council";
+                  } else {
+                    council_name = formData.get("council").split(" ")[0].toLowerCase();
+                  }
                   let approval = formData.get("approval") !== null;
                   let councilwide = formData.get("councilwide") !== null;
                   let role = {};
-                  if (councilwide) {
+                  if (councilwide && council_name !== "no council") {
                     role[council_name] = "approve";
                   }
                   if (approval) {
@@ -651,7 +657,7 @@ function Navbar({
                     entities[el] !== undefined 
                     && entities[el].type === "council" 
                     && privileges[el] === "approve")
-                  .map(el => `${el.toUpperCase()} Council`) 
+                  .map(el => `${el.toUpperCase()} Council`).concat(privileges.admin ? ["No Council"] : [])
                   : []}
                 renderInput={(params) => <TextField {...params} label="Council" name="council"/>}
               />

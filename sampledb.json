@@ -1,4 +1,5 @@
 {
+    "users": {},
   "approved": {
     "-NuyN3ylXuux_Yoin2LU": {
       "date": 1712593800000,
@@ -26,6 +27,15 @@
       "name": "SnT Council Orientation",
       "org": "pclub",
       "venue": "Main Auditorium"
+    },
+    "-O4b-yrejvL7TIUgVx_y": {
+      "date": 1724023800000,
+      "desc": "This is a demonstration event for the Senate meeting.",
+      "duration": 60,
+      "image": "https://firebasestorage.googleapis.com/v0/b/gymkhanacalendar.appspot.com/o/MSwxNDUsMTAzLDIsMjI5LDU0?alt=media&token=4ff063dd-58cd-458b-9593-c6a622788bf5",
+      "name": "Demonstration Event",
+      "org": "pclub",
+      "venue": "Senate Hall"
     }
   },
   "entities": {
@@ -35,6 +45,26 @@
         "bcs": "Brain and Cognitive Society",
         "pclub": "Programming Club",
         "rclub": "Robotics Club"
+    }
+  },
+  "requested": {
+    "-O45G7VqL5tVYl6IAw0_": {
+      "date": 1723358520000,
+      "desc": "test",
+      "duration": 1,
+      "image": "",
+      "name": "test",
+      "org": "pclub",
+      "venue": "test"
+    },
+    "-O5TBmYbIpR79I-7eUFC": {
+      "date": 1723617000000,
+      "desc": "test",
+      "duration": 60,
+      "image": "",
+      "name": "test",
+      "org": "amc",
+      "venue": "test"
     }
   }
 }
